@@ -56,7 +56,7 @@ await page.click('[data-act=pq][data-k=water][data-v="1"]');
 await page.click('[data-act=pq][data-k=ok][data-v="1"]');
 await page.click('[data-act=start]');
 await page.waitForSelector('.safety');
-assert(await page.locator('text=Dizzy or lightheaded?').count(), 'persistent dizzy reminder');
+assert(await page.locator('.safety >> text=Dizzy?').count() && await page.locator('.safety >> text=I feel dizzy').count(), 'persistent dizzy reminder');
 
 // lift 1: bench — check prefilled values
 const w0 = await page.inputValue('input[data-i="0"][data-j="0"][data-f="weight"]');
@@ -337,17 +337,26 @@ assert(/Each side:/.test(plateTxt) || /Bar only/.test(plateTxt), 'plate breakdow
 await page.evaluate(() => { document.querySelector('.plates')?.scrollIntoView({ block: 'center' }); window.scrollBy(0, -40); });
 await page.waitForTimeout(300);
 await page.screenshot({ path: SHOTS + '21-plate-calculator.png' });
-// Swap sheet
+// Dizzy stop always visible (compact)
+assert(await page.locator('.safety >> text=I feel dizzy').count(), 'dizzy stop on every workout');
+assert(await page.locator('.safety >> text=Dizzy?').count(), 'compact dizzy rule line');
+
+// Swap sheet — Dre's ranked 3 only (trap-bar → blocks / DB / Smith)
 await page.click('[data-act=swap][data-i="0"]');
-await page.waitForSelector('.panel >> text=LA Fitness swap');
+await page.waitForSelector('.panel >> text=Coach Dre swaps');
 assert(await page.locator('.panel >> text=Make permanent in the plan').count(), 'permanent swap toggle');
-assert(await page.locator('.panel >> text=Same movement pattern').count(), 'same-pattern list');
+assert(!(await page.locator('.panel >> text=All LA Fitness exercises').count()), 'no all-exercises fluff');
+const swapIds = await page.evaluate(() => [...document.querySelectorAll('.panel [data-act=doSwap]')].map(e => e.dataset.ex));
+assert(JSON.stringify(swapIds) === JSON.stringify(['bb_deadlift_blocks', 'db_deadlift', 'smith_deadlift']), 'Dre ranked 3 for trap-bar: ' + JSON.stringify(swapIds));
+assert(await page.locator('.panel >> text=Likely default').count(), 'blocks tagged as likely default');
 await page.waitForTimeout(300);
 await page.screenshot({ path: SHOTS + '22-exercise-swap.png' });
-await page.click('.panel [data-act=doSwap][data-ex=db_deadlift]');
+await page.click('.panel [data-act=doSwap][data-ex=bb_deadlift_blocks]');
 const swapped = await page.evaluate(() => window.__rep.state.active.exercises[0]);
-assert(swapped.exId === 'db_deadlift' && swapped.swappedFrom === 'trap_bar_deadlift', 'swap applied for today with from-id');
-assert(swapped.suggestion && swapped.suggestion.source, 'swap suggestion has source');
+assert(swapped.exId === 'bb_deadlift_blocks' && swapped.swappedFrom === 'trap_bar_deadlift', 'swap applied for today with from-id');
+assert(swapped.suggestion && swapped.suggestion.source === 'fresh', 'no history → first-session guidance, no weight carry');
+assert(swapped.suggestion.weight == null && /RIR 2/i.test(swapped.suggestion.text), 'empty weight + RIR 2 first-session text');
+assert(JSON.stringify(swapped.reps) === JSON.stringify([6, 8]) && swapped.sets.length === 3, 'same rep range, 3 sets');
 await page.waitForTimeout(400);
 await page.screenshot({ path: SHOTS + '23-swap-applied.png' });
 await page.click('[data-act=discard]');

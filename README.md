@@ -1,4 +1,4 @@
-# Rep — Boss's workout app (v1.5)
+# Rep — Boss's workout app (v1.5.1)
 
 Personal, mobile-first PWA (not a Fernholt product). Plain static site: vanilla JS ES modules, no framework, no backend, no accounts. All data stays on the phone (localStorage) with JSON Export/Import in Settings.
 
@@ -35,7 +35,7 @@ In-app edits (Settings → Schedule / Program / Targets) are stored on the devic
 - **Weekly check-in for Coach Dre**: Monday card on Today + button on Progress. Builds a plain-text summary (7-day avg weight & change, sessions done/planned, top set + e1RM change per lift, PRs, deload/stall notes, protein vs 210 g, kcal, Tue/Thu/Sun steps vs 6–8k, supplements / tirzepatide, dizziness/sleep/water). **Copy** and **Share** — paste it to Dre.
 - **Plate calculator**: on barbell / trap-bar sets, shows per-side LA Fitness plates (45/35/25/10/5/2.5) for a 45 lb bar (trap bar separately editable in Settings).
 - **Voice + vibration rest timer**: speaks “Rest over, next set” (and a “10 seconds” warning) via `speechSynthesis`, plus vibration; toggles in Settings. Screen wake lock keeps the timer alive during a workout.
-- **Exercise swap**: ⇄ on each lift lists same-pattern LA Fitness alternatives. Today-only by default, or **Make permanent in the plan**. Keeps the swap’s own history when present; otherwise suggests a conservative starting weight converted from the original lift with a short note.
+- **Exercise swap**: ⇄ on each lift shows Coach Dre’s ranked 3 alternatives (exact list in `DRE_SWAPS`). Same rep range · 3 sets · RIR 2. Today-only by default, or **Make permanent in the plan**. Each swap logs its own weight — no carry-over from the original lift; first time = pick a starting weight for the bottom of the range at RIR 2.
 - **Smarter fat-loss tracking**: bodyweight chart overlays a 7-day moving average; shows lb/wk and % bodyweight/week, projected date to 200 lb, and a gentle flag if loss is faster than ~1.5% BW/week for 2+ weeks or several e1RMs are dropping (check protein, tell Coach Dre). No medical claims.
 - **Offline**: service worker caches the app shell.
 

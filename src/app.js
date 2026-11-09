@@ -156,7 +156,7 @@ function visible(a) {
 }
 function viewWorkout() {
   const a = state.active;
-  let h = `<div class="safety"><span>⚠️ Dizzy or lightheaded? <b>Stop, sit down, sip fluids.</b></span><button class="btn danger sm" data-act="dizzy">I feel dizzy</button></div>`;
+  let h = `<div class="safety" role="status"><span>⚠️ Dizzy? <b>Stop. Sit. Sip fluids.</b></span><button class="btn danger sm" data-act="dizzy">I feel dizzy</button></div>`;
   h += `<header class="hero tight"><div class="eyebrow">Week ${a.week}${a.deload ? ' · DELOAD' : ''} · RIR 2</div>
     <div class="row between"><h1>${esc(a.workoutName)}</h1><span class="clock" id="elapsed">0:00</span></div>
     <label class="toggle"><input type="checkbox" data-change="badDay" ${a.badDay ? 'checked' : ''}><span></span>Bad day <small>(2 lifts × 2 sets)</small></label></header>`;
@@ -529,7 +529,7 @@ function viewSettings() {
     <button class="btn danger wide" data-act="resetAll">Erase all data</button>
     <p class="muted sm">${doneSessions().length} sessions · ${state.bodyweight.length} weigh-ins · ${state.dizzyEvents.length} dizziness events · ${state.injections.length} injections · ${state.supplements.length} supplements</p></section>`;
   h += `<section class="card"><h3>Safety</h3><p class="muted sm">Don't lift fasted. Eat carbs + protein 1–2 h before, drink water/electrolytes. If dizzy or lightheaded: stop, sit or lie down, sip fluids, have some fast carbs. Fainting, chest pain, or confusion → call 911. Tell your prescriber about repeated dizziness.</p>
-    <p class="muted sm">Rep v1.5 · personal use</p></section>`;
+    <p class="muted sm">Rep v1.5.1 · personal use</p></section>`;
   return h;
 }
 
@@ -556,16 +556,16 @@ function infoSheet(id) {
 
 function swapSheet(i) {
   const a = state.active; const cur = visible(a)[i].e;
-  const { same, rest } = swapAlternatives(cur.exId);
-  const item = e => {
+  const { ranked } = swapAlternatives(cur.exId);
+  const item = (e, n) => {
     const hasHist = historyFor(e.id).length > 0;
-    return `<li data-act="doSwap" data-i="${i}" data-ex="${e.id}"><b>${esc(e.name)}</b><small>${esc(e.equipment)}${hasHist ? ' · has history' : ' · converts from current'}</small></li>`;
+    const tag = e.tag ? `<span class="chip sm warn">${esc(e.tag)}</span>` : '';
+    return `<li data-act="doSwap" data-i="${i}" data-ex="${e.id}"><span class="exnum">${n}</span><div class="grow"><b>${esc(e.name)}</b><small>${esc(e.equipment)}${hasHist ? ' · own history' : ' · pick starting weight'}</small>${tag}</div></li>`;
   };
-  sheet(`<div class="eyebrow accent">LA Fitness swap</div><h2>Swap ${esc(exercise(cur.exId).name)}</h2>
-    <p class="muted sm">Today only by default. Progression carries over: the swap keeps its own history if you have one; otherwise we suggest a conservative starting weight from this lift.</p>
+  sheet(`<div class="eyebrow accent">Coach Dre swaps</div><h2>Swap ${esc(exercise(cur.exId).name)}</h2>
+    <p class="muted sm">Same reps · 3 sets · RIR 2. Each swap logs its own weight. Today only unless you make it permanent.</p>
     <label class="toggle"><input type="checkbox" id="swapSave"><span></span>Make permanent in the plan</label>
-    <h3>Same movement pattern</h3><ul class="picker">${same.map(item).join('') || '<li class="muted">None</li>'}</ul>
-    <details><summary>All LA Fitness exercises</summary><ul class="picker">${rest.map(item).join('')}</ul></details>
+    <ul class="picker">${ranked.map((e, n) => item(e, n + 1)).join('') || '<li class="muted">No swaps listed</li>'}</ul>
     <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
 }
 
@@ -729,16 +729,16 @@ const actions = {
     const fromId = entry.exId; const toId = el.dataset.ex;
     const saveProg = $('#swapSave')?.checked;
     const w = workoutById(a.workoutId);
-    const base = w?.exercises[idx] || { sets: entry.sets?.length || 3, reps: entry.reps };
-    const slot = { sets: base.sets || 3, reps: base.reps || entry.reps, note: base.note || entry.note || '', ex: toId };
+    const base = w?.exercises[idx] || { sets: 3, reps: entry.reps };
+    const slot = { sets: 3, reps: entry.reps || base.reps, note: entry.note || base.note || '', ex: toId };
     const sg = swapSuggestion(fromId, toId, slot, { deload: a.deload, badDay: a.badDay });
     a.exercises[idx] = {
       exId: toId, reps: slot.reps, note: slot.note || '', suggestion: sg, swappedFrom: fromId,
       sets: Array.from({ length: sg.sets }, (_, j) => ({ weight: sg.weights[j] ?? '', reps: sg.targets[j] ?? '', done: false, rir: null })),
     };
-    if (saveProg && w) w.exercises[idx].ex = toId;
+    if (saveProg && w) { w.exercises[idx].ex = toId; w.exercises[idx].sets = 3; w.exercises[idx].reps = slot.reps; }
     save(); closeSheet(); render();
-    toast(saveProg ? `Permanent swap → ${exercise(toId).name}` : `Today: ${exercise(toId).name}`);
+    toast(saveProg ? `Permanent → ${exercise(toId).name}` : `Today: ${exercise(toId).name}`);
   },
   finish: () => finishSession('done'),
   discard: () => { if (confirm('Discard this workout? Logged sets will be lost.')) { state.active = null; stopTimer(); save(); wake(false); render(); } },

@@ -205,6 +205,6 @@
   "manifestUrl": "http://localhost:5173/manifest.json",
   "swScope": "http://localhost:5173/",
   "cacheKeys": [
-    "rep-v1.5.0"
+    "rep-v1.5.1"
   ]
 }

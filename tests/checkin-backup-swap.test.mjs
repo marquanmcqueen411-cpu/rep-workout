@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import * as store from '../src/store.js';
 import { buildCheckIn, weekRange } from '../src/checkin.js';
 import { needsBackupReminder, formatLastBackup, backupPayload, backupFilename, canShareFiles } from '../src/backup.js';
-import { convertWeight, swapSuggestion, swapAlternatives } from '../src/swap.js';
-import { exercise } from '../src/exercises.js';
+import { swapSuggestion, swapAlternatives, DRE_SWAPS } from '../src/swap.js';
+import { alternatives, exercise } from '../src/exercises.js';
 
 const reset = () => { store.resetAll(); return store.state; };
 const sess = (id, date, wid, exs, o = {}) => ({
@@ -66,22 +66,30 @@ test('backupPayload + filename shape', () => {
   assert.equal(canShareFiles(), false); // Node has no share API
 });
 
-test('convertWeight: barbell → DB per hand is conservative', () => {
-  const from = exercise('bench_press');
-  const to = exercise('db_bench_press');
-  const c = convertWeight(from, to, 185);
-  assert.ok(c.weight < 90 && c.weight > 50, `got ${c.weight}`);
-  assert.match(c.note, /40%/);
+test('DRE_SWAPS: every primary has exactly 3 ranked swaps that exist', () => {
+  const primaries = [
+    'bench_press', 'chest_supported_row', 'seated_db_shoulder_press',
+    'box_squat', 'romanian_deadlift', 'leg_press',
+    'lat_pulldown', 'incline_db_press', 'cable_lateral_raise',
+    'trap_bar_deadlift', 'split_squat', 'hip_thrust',
+  ];
+  assert.deepEqual(Object.keys(DRE_SWAPS).sort(), [...primaries].sort());
+  for (const id of primaries) {
+    const alts = alternatives(id);
+    assert.equal(alts.length, 3, `${id} should have 3 swaps`);
+    assert.deepEqual(alts.map(a => a.id), DRE_SWAPS[id]);
+    for (const a of alts) assert.ok(a.name && a.cues?.length, `${a.id} needs name+cues`);
+  }
+  assert.match(exercise('bb_deadlift_blocks').tag, /no trap bar/i);
 });
 
-test('swapAlternatives groups same pattern first', () => {
-  const { same, rest } = swapAlternatives('bench_press');
-  assert.ok(same.some(e => e.id === 'db_bench_press'));
-  assert.ok(same.every(e => e.pattern === 'h_push'));
-  assert.ok(rest.every(e => e.id !== 'bench_press'));
+test('swapAlternatives returns only Dre ranked list (lean)', () => {
+  const { ranked, rest } = swapAlternatives('trap_bar_deadlift');
+  assert.deepEqual(ranked.map(e => e.id), ['bb_deadlift_blocks', 'db_deadlift', 'smith_deadlift']);
+  assert.equal(rest.length, 0);
 });
 
-test('swapSuggestion uses history when present, else converts', () => {
+test('swapSuggestion uses own history; never converts from original lift', () => {
   const s = reset();
   s.sessions.push(sess('a', '2026-11-02', 'U1', [
     { exId: 'db_bench_press', reps: [6, 8], sets: [{ weight: 70, reps: 8 }, { weight: 70, reps: 8 }, { weight: 70, reps: 8 }] },
@@ -94,10 +102,12 @@ test('swapSuggestion uses history when present, else converts', () => {
   store.state.sessions.push(sess('b', '2026-11-02', 'U1', [
     { exId: 'bench_press', reps: [6, 8], sets: [{ weight: 185, reps: 8 }, { weight: 185, reps: 8 }, { weight: 185, reps: 7 }] },
   ]));
-  const conv = swapSuggestion('bench_press', 'machine_chest_press', { sets: 3, reps: [6, 8] });
-  assert.equal(conv.source, 'converted');
-  assert.ok(conv.weight > 0 && conv.weight < 185, `converted ${conv.weight}`);
-  assert.match(conv.text, /Swapped from/);
+  const fresh = swapSuggestion('bench_press', 'machine_chest_press', { sets: 3, reps: [6, 8] });
+  assert.equal(fresh.source, 'fresh');
+  assert.equal(fresh.first, true);
+  assert.equal(fresh.weight, null);
+  assert.match(fresh.text, /First time.*RIR 2/i);
+  assert.ok(!/185|convert|Swapped from/i.test(fresh.text), 'must not carry original weight');
 });
 
 test('settings migrate picks up bar/voice/backup defaults', () => {

@@ -1,6 +1,6 @@
 {
   "name": "rep-workout-app",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "private": true,
   "type": "module",
   "description": "Boss's personal workout PWA (static, no backend).",

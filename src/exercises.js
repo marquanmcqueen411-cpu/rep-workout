@@ -1,7 +1,7 @@
 // ============================================================================
 //  EXERCISE LIBRARY — LA Fitness-friendly equipment.
 //  region: 'upper' | 'lower'  (drives +5 / +10 lb progression)
-//  pattern: used to suggest swaps (same pattern = sensible substitute)
+//  pattern: movement pattern · swaps: Coach Dre ranked lists in DRE_SWAPS
 //  primary/secondary: muscle ids used by the recovery map
 //  demo: YouTube search query (we link out; no hotlinked/copyrighted media)
 // ============================================================================
@@ -31,7 +31,7 @@ export const EXERCISES = [
     ['chest'], ['front_delts', 'triceps'],
     ['Kick DBs up from thighs as you lie back.', 'Lower to chest level, elbows ~45°.',
      'Press up, bring DBs together without clanking.'], { perHand: true , equip: 'db' }),
-  E('machine_chest_press', 'Machine Chest Press', 'Chest press machine', 'upper', 'h_push',
+  E('machine_chest_press', 'Hammer Strength / Machine Chest Press', 'Hammer Strength / chest press machine', 'upper', 'h_push',
     ['chest'], ['front_delts', 'triceps'],
     ['Seat so handles line up with mid-chest.', 'Back flat on pad, shoulders down.', 'Smooth press; control the return.'], { equip: 'machine' }),
   // ---- Incline push
@@ -155,6 +155,56 @@ export const EXERCISES = [
     ['glutes'], ['hamstrings'], ['Bar padded over hips.', 'Drive up to flat torso.', 'Squeeze 1 sec.'], { equip: 'smith' }),
   E('glute_drive_machine', 'Hip Thrust Machine', 'Glute drive / hip thrust machine', 'lower', 'glute',
     ['glutes'], ['hamstrings'], ['Belt over hips.', 'Drive up, squeeze.', 'Control down.'], { equip: 'machine' }),
+  // ---- Dre swap additions
+  E('chest_supported_tbar_row', 'Chest-Supported T-Bar Row', 'T-bar / chest-supported row', 'upper', 'h_pull',
+    ['upper_back', 'lats'], ['rear_delts', 'biceps'],
+    ['Chest glued to the pad.', 'Pull elbows back toward hips.', 'Squeeze at the top; control the stretch.'], { equip: 'machine' }),
+  E('machine_row', 'Hammer Strength / Machine Row', 'Hammer Strength / plate-loaded row', 'upper', 'h_pull',
+    ['upper_back', 'lats'], ['rear_delts', 'biceps'],
+    ['Chest on pad, neutral grip if available.', 'Pull handles to lower ribs.', 'Don’t shrug; control the return.'], { equip: 'machine' }),
+  E('landmine_press', 'Standing Landmine Press', 'Landmine / barbell in corner', 'upper', 'v_push',
+    ['front_delts'], ['chest', 'triceps', 'abs'],
+    ['Bar in landmine or corner; hold end at shoulder.', 'Press up and slightly forward.', 'Brace core; don’t lean back hard.'], { equip: 'barbell', perHand: true }),
+  E('goblet_box_squat', 'Goblet Squat to Box', 'Dumbbell + box/bench', 'lower', 'squat',
+    ['quads', 'glutes'], ['adductors', 'abs'],
+    ['Hold DB at chest.', 'Sit lightly to the box — don’t crash.', 'Drive up through mid-foot, chest tall.'], { equip: 'db' }),
+  E('smith_rdl', 'Smith Romanian Deadlift', 'Smith machine', 'lower', 'hinge',
+    ['hamstrings', 'glutes'], ['lower_back'],
+    ['Bar against thighs, soft knees.', 'Hips back; bar slides down legs.', 'Flat back; squeeze glutes to stand.'], { equip: 'smith' }),
+  E('back_extension_45', 'Loaded 45° Back Extension', '45-degree back extension + plate/DB', 'lower', 'hinge',
+    ['hamstrings', 'glutes', 'lower_back'], [],
+    ['Pad at hip crease.', 'Hinge down with flat back.', 'Squeeze glutes to rise; don’t hyperextend.'], { equip: 'machine' }),
+  E('smith_squat', 'Smith Squat', 'Smith machine', 'lower', 'squat',
+    ['quads', 'glutes'], ['adductors'],
+    ['Feet slightly forward of the bar.', 'Lower to about parallel.', 'Drive up; set safeties.'], { equip: 'smith' }),
+  E('belt_squat', 'Belt Squat', 'Belt squat machine (if available)', 'lower', 'squat',
+    ['quads', 'glutes'], ['adductors'],
+    ['Belt snug on hips.', 'Stand tall, sit between your feet.', 'Drive up through mid-foot.'], { equip: 'machine' }),
+  E('machine_pulldown', 'Machine Pulldown', 'Plate-loaded / Hammer Strength pulldown', 'upper', 'v_pull',
+    ['lats'], ['upper_back', 'biceps'],
+    ['Thighs locked; chest up.', 'Pull handles to upper chest.', 'Control the stretch at the top.'], { equip: 'machine' }),
+  E('single_arm_cable_pulldown', 'Single-Arm Cable Pulldown', 'Cable + D-handle (high)', 'upper', 'v_pull',
+    ['lats'], ['upper_back', 'biceps'],
+    ['Pull one arm from overhead to lower ribs.', 'Elbow drives down & back.', 'Switch sides; no torso twist.'], { perHand: true, equip: 'cable' }),
+  E('incline_machine_press', 'Incline Machine Press', 'Incline chest press machine', 'upper', 'h_push',
+    ['chest', 'front_delts'], ['triceps'],
+    ['Seat so handles meet upper chest.', 'Shoulder blades back.', 'Press smoothly; control down.'], { equip: 'machine' }),
+  E('incline_bb_press', 'Incline Barbell Press', 'Barbell + incline bench (~30°)', 'upper', 'h_push',
+    ['chest', 'front_delts'], ['triceps'],
+    ['Bench ~30°.', 'Bar to upper chest, elbows slightly tucked.', 'Press up; use safeties or a spotter.'], { equip: 'barbell' }),
+  E('leaning_db_lateral', 'Leaning Single-Arm DB Lateral', 'Dumbbell + rack support', 'upper', 'lat_raise',
+    ['side_delts'], ['traps'],
+    ['Hold a rack and lean away.', 'Raise the free DB to shoulder height.', 'Slow lower; no shrug.'], { perHand: true, isolation: true, equip: 'db' }),
+  E('bb_deadlift_blocks', 'Barbell Deadlift from Blocks', 'Barbell + blocks/pins (above floor)', 'lower', 'hinge',
+    ['glutes', 'hamstrings', 'quads'], ['lower_back', 'traps', 'forearms'],
+    ['Bar starts on blocks/pins around mid-shin.', 'Hips down, chest up, brace.', 'Push floor away; stand tall; control down to blocks.'],
+    { equip: 'barbell', tag: 'Likely default — many LA Fitness locations have no trap bar' }),
+  E('db_reverse_lunge', 'DB Reverse Lunge', 'Dumbbells', 'lower', 'lunge',
+    ['quads', 'glutes'], ['adductors', 'hamstrings'],
+    ['Step back into a long lunge.', 'Front knee tracks over mid-foot.', 'Drive through front foot; alternate or finish one side.'], { perHand: true, equip: 'db' }),
+  E('single_leg_db_hip_thrust', 'Single-Leg DB Hip Thrust', 'Dumbbell + bench', 'lower', 'glute',
+    ['glutes'], ['hamstrings'],
+    ['Upper back on bench; one foot planted.', 'DB on working hip.', 'Drive hips up; squeeze; switch legs. Start light.'], { perHand: true, equip: 'db' }),
   // ---- Extras
   E('cable_triceps_pushdown', 'Cable Triceps Pushdown', 'Cable + rope/bar', 'upper', 'arms',
     ['triceps'], [], ['Elbows pinned at sides.', 'Push down to full lockout.', 'Control up.'], { isolation: true , equip: 'cable' }),
@@ -177,7 +227,24 @@ export function demoUrl(ex) {
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
 }
 
+// Coach Dre's ranked swap lists (exactly 3, in order) for each primary lift.
+export const DRE_SWAPS = {
+  bench_press: ['db_bench_press', 'smith_bench_press', 'machine_chest_press'],
+  chest_supported_row: ['chest_supported_tbar_row', 'seated_cable_row', 'machine_row'],
+  seated_db_shoulder_press: ['machine_shoulder_press', 'smith_shoulder_press', 'landmine_press'],
+  box_squat: ['smith_box_squat', 'hack_squat', 'goblet_box_squat'],
+  romanian_deadlift: ['db_romanian_deadlift', 'smith_rdl', 'back_extension_45'],
+  leg_press: ['hack_squat', 'smith_squat', 'belt_squat'],
+  lat_pulldown: ['machine_pulldown', 'assisted_pullup', 'single_arm_cable_pulldown'],
+  incline_db_press: ['incline_smith_press', 'incline_machine_press', 'incline_bb_press'],
+  cable_lateral_raise: ['db_lateral_raise', 'machine_lateral_raise', 'leaning_db_lateral'],
+  trap_bar_deadlift: ['bb_deadlift_blocks', 'db_deadlift', 'smith_deadlift'],
+  split_squat: ['smith_split_squat', 'db_reverse_lunge', 'bulgarian_split_squat'],
+  hip_thrust: ['smith_hip_thrust', 'glute_drive_machine', 'single_leg_db_hip_thrust'],
+};
+
+/** Dre's ranked swaps for a primary lift (exactly 3). Empty if not a primary. */
 export function alternatives(id) {
-  const ex = exercise(id);
-  return EXERCISES.filter(e => e.id !== id && e.pattern === ex.pattern);
+  const ids = DRE_SWAPS[id] || [];
+  return ids.map(exercise);
 }
