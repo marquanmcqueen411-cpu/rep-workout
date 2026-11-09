@@ -3,3 +3,6 @@ dist/
 *.log
 .e2e-backup.json
 screenshots/qa/*.png
+
+.e2e-backup*.json
+.e2e-backup.json
