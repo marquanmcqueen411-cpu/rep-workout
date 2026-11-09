@@ -1,10 +1,10 @@
-import { state, save, ymd, parseYmd, mondayOf, addDays, day, replaceState, resetAll, resetProgram, clone } from './store.js';
+import { state, save, ymd, parseYmd, mondayOf, addDays, day, replaceState, resetAll, resetProgram, clone, uid, recalcProtein } from './store.js';
 import { EXERCISES, MUSCLES, exercise, demoUrl, alternatives } from './exercises.js';
-import { PROGRESSION, BODYWEIGHT } from './program.js';
+import { PROGRESSION, BODYWEIGHT, SUPP_TIMINGS } from './program.js';
 import { WD, WD_LONG, workoutById, doneSessions, programWeek, scheduleFor, nextInRotation, suggest, fmtW,
-  historyFor, e1rm, recovery, recColor, streak, trainingDays, round } from './logic.js';
+  historyFor, e1rm, recovery, recColor, streak, trainingDays, round, suppAdherence, suppStreak, injectionStatus } from './logic.js';
 import { bodySvg } from './body.js';
-import { lineChart } from './charts.js';
+import { lineChart, barChart } from './charts.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -37,6 +37,7 @@ function viewToday() {
     <h1>Today</h1><div class="chips"><span class="chip ${pw.deload ? 'warn' : ''}">Week ${pw.week} of ${pw.of}${pw.deload ? ' · DELOAD' : ''}</span><span class="chip">Cycle ${pw.cycle}</span><span class="chip">RIR 2</span></div></header>`;
   if (pw.deload) h += `<div class="banner deload"><b>Deload week.</b> ~60% volume: 2 sets per lift at ~90% weight. Recover, move well, keep protein high.</div>`;
   h += weighInCard();
+  if (injectionStatus().status !== 'done') h += injectionCard(true);
 
   const doneToday = doneSessions().filter(s => s.date === ymd());
   const wid = ui.choice || (sch.type === 'lift' ? sch.workout : null);
@@ -64,7 +65,8 @@ function viewToday() {
   h += `<section class="card"><div class="row between"><h3>Daily snapshot</h3><button class="link" data-act="go" data-tab="daily">Open ›</button></div>
     <div class="snap"><div><span class="lbl">Protein</span><b>${d.protein}</b><small>/ ${t.protein} g</small>${bar(d.protein, t.protein)}</div>
     <div><span class="lbl">Water</span><b>${d.waterOz}</b><small>/ ${t.waterOz} oz</small>${bar(d.waterOz, t.waterOz)}</div>
-    <div><span class="lbl">Steps</span><b>${fmtNum(d.steps)}</b><small>/ ${fmtNum(t.steps)}</small>${bar(d.steps, t.steps)}</div></div></section>`;
+    <div><span class="lbl">Steps</span><b>${fmtNum(d.steps)}</b><small>/ ${fmtNum(t.steps)}</small>${bar(d.steps, t.steps)}</div></div>
+    ${(a => a ? `<div class="row between snap-supp"><span class="lbl">Supplements</span><span><b>${a.n}/${a.total}</b> taken</span></div>` : '')(suppAdherence(ymd()))}</section>`;
   h += weekStrip();
   return h;
 }
@@ -87,7 +89,7 @@ function workoutPreview(w, sch, pw) {
   const rows = slots.map((slot, i) => {
     const ex = exercise(slot.ex); const sg = suggest(slot, { deload: pw.deload });
     const sets = bad ? Math.min(PROGRESSION.badDaySets, sg.sets) : sg.sets;
-    return `<li data-act="info" data-ex="${slot.ex}"><div class="num">${i + 1}</div><div class="grow"><b>${esc(ex.name)}</b>
+    return `<li data-act="info" data-ex="${slot.ex}"><div class="exnum">${i + 1}</div><div class="grow"><b>${esc(ex.name)}</b>
       <small>${sets} × ${slot.reps[0]}–${slot.reps[1]}${slot.note ? ' ' + esc(slot.note) : ''} · ${sg.weight != null ? fmtW(sg.weight) : 'set your weight'}${sg.up ? ' <span class="up">▲</span>' : ''}</small></div><span class="chev">ⓘ</span></li>`;
   }).join('');
   return `<section class="card workout-card"><div class="eyebrow accent">${isSched ? 'Scheduled' : 'Selected'} workout</div>
@@ -165,6 +167,7 @@ function viewProgress() {
   const st = streak();
   let h = `<header class="hero"><h1>Progress</h1></header>`;
   h += `<section class="card streak"><div class="flame">🔥</div><div><div class="big">${st.weeks}-week streak</div><div class="muted">This week ${st.thisWeek}/${st.target} training days (lifts + classes)</div></div></section>`;
+  h += `<section class="card"><div class="row between"><h3>Protein · last 7 days</h3><span class="chip">goal ${state.settings.targets.protein} g</span></div>${protein7(ymd())}</section>`;
   // bodyweight
   const bw = [...state.bodyweight].sort((a, b) => a.date.localeCompare(b.date));
   const goal = state.settings.goalWeight;
@@ -256,13 +259,13 @@ function viewDaily() {
   let h = `<header class="hero"><div class="row between"><button class="icon" data-act="dday" data-n="-1">‹</button>
     <div class="center"><div class="eyebrow">${isToday ? 'Today' : WD_LONG[dt.getDay()]}</div><h1>${dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</h1></div>
     <button class="icon" data-act="dday" data-n="1" ${isToday ? 'disabled' : ''}>›</button></div></header>`;
+  h += proteinHero(k, d, t);
+  h += `<section class="card"><div class="row between"><h3>Protein · last 7 days</h3><span class="muted sm">goal ${t.protein} g</span></div>${protein7(k)}</section>`;
+  h += suppCard(k, d);
+  h += injectionCard(false);
   h += `<section class="card targets"><div class="eyebrow accent">Coach Dre targets</div><div class="macros">
     <div><b>${fmtNum(t.kcal)}</b><small>kcal</small></div><div><b>${t.protein}g</b><small>protein</small></div><div><b>~${t.fat}g</b><small>fat</small></div><div><b>~${t.carbs}g</b><small>carbs</small></div></div>
     <p class="muted sm">Protein first at every meal to hold onto muscle. If appetite is low on tirzepatide, use shakes / Greek yogurt and smaller, more frequent meals.</p></section>`;
-  h += `<section class="card"><div class="row between"><h3>Protein</h3><span class="muted">${Math.max(0, t.protein - d.protein)} g to go</span></div>
-    <div class="ring-row">${ring(d.protein, t.protein)}<div class="grow"><div class="big">${d.protein}<small> / ${t.protein} g</small></div>
-    <div class="quick"><button class="btn primary" data-act="addP" data-n="10">+10</button><button class="btn primary" data-act="addP" data-n="25">+25</button><button class="btn primary" data-act="addP" data-n="40">+40</button></div>
-    <div class="quick"><button class="btn ghost sm" data-act="addP" data-n="-10">−10</button><input class="inp sm" type="number" inputmode="numeric" data-change="setP" value="${d.protein}" aria-label="Protein grams"></div></div></div></section>`;
   h += `<section class="card"><div class="row between"><h3>Calories <small class="muted">(optional)</small></h3><span class="muted">${fmtNum(d.kcal)} / ${fmtNum(t.kcal)}</span></div>${bar(d.kcal, t.kcal)}
     <div class="quick"><button class="btn" data-act="addK" data-n="100">+100</button><button class="btn" data-act="addK" data-n="250">+250</button><button class="btn" data-act="addK" data-n="500">+500</button><input class="inp sm" type="number" inputmode="numeric" data-change="setK" value="${d.kcal}" aria-label="Calories"></div></section>`;
   h += `<section class="card"><div class="row between"><h3>Water</h3><span class="muted">${d.waterOz} / ${t.waterOz} oz · ${Math.round(d.waterOz / 8)} glasses</span></div>${bar(d.waterOz, t.waterOz, '#3aa0ff')}
@@ -277,12 +280,68 @@ function viewDaily() {
   return h;
 }
 
+function fmtTime(ts) { return ts ? new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '—'; }
+function shortDate(dt) { return dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
+
+function proteinHero(k, d, t) {
+  const left = Math.max(0, t.protein - d.protein);
+  const log = [...d.proteinLog].sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+  return `<section class="card hero-card"><div class="row between"><div><div class="eyebrow accent">Protein</div><h2>${left ? `${left} g to go` : 'Goal hit 💪'}</h2></div><span class="chip">${d.proteinLog.length} entries</span></div>
+    <div class="hero-ring">${ring(d.protein, t.protein, 'big')}<div class="hero-num"><b>${d.protein}</b><small>/ ${t.protein} g</small></div></div>
+    <div class="quick"><button class="btn primary" data-act="addP" data-n="10">+10 g</button><button class="btn primary" data-act="addP" data-n="25">+25 g</button><button class="btn primary" data-act="addP" data-n="40">+40 g</button></div>
+    ${state.quickFoods.length ? `<div class="foods">${state.quickFoods.map(f => `<button class="food" data-act="addFood" data-id="${f.id}"><b>${esc(f.name)}</b><small>+${f.g} g</small></button>`).join('')}</div>` : ''}
+    <div class="row custom"><input id="pG" class="inp" type="number" inputmode="numeric" placeholder="g" aria-label="Custom grams"><input id="pLabel" class="inp" type="text" placeholder="label (e.g. chicken)" aria-label="Label"><button class="btn primary" data-act="addCustomP">Add</button></div>
+    <ul class="plog">${log.length ? log.map(e => `<li class="swipe" data-swipe="delP" data-id="${e.id}"><span class="ptime">${fmtTime(e.ts)}</span><span class="grow">${esc(e.label || 'Protein')}</span><b>+${e.g} g</b><button class="del" data-act="delP" data-id="${e.id}" aria-label="Delete entry">✕</button></li>`).join('') : '<li class="muted empty">No entries yet — tap a button above.</li>'}</ul>
+    ${log.length ? '<p class="muted sm hint">Swipe left or tap ✕ to delete an entry.</p>' : ''}</section>`;
+}
+function protein7(endKey) {
+  const end = parseYmd(endKey); const bars = [];
+  for (let i = 6; i >= 0; i--) { const dt = addDays(end, -i); const k = ymd(dt); const v = state.daily[k] ? state.daily[k].protein || 0 : 0; bars.push({ label: WD[dt.getDay()].slice(0, 2), value: v, highlight: i === 0 }); }
+  const avg = Math.round(bars.reduce((a, b) => a + b.value, 0) / 7); const hit = bars.filter(b => b.value >= state.settings.targets.protein).length;
+  return `${barChart(bars, { goal: state.settings.targets.protein })}<div class="muted sm">7-day avg <b class="accent">${avg} g</b> · goal hit ${hit}/7 days</div>`;
+}
+function suppCard(k, d) {
+  const list = state.supplements;
+  if (!list.length) return `<section class="card"><h3>Supplements</h3><p class="muted">No supplements set up.</p><button class="btn ghost" data-act="go" data-tab="settings">Add in Settings</button></section>`;
+  const a = suppAdherence(k);
+  const groups = SUPP_TIMINGS.map(([tk, tl]) => [tl, list.filter(x => x.timing === tk)]).filter(([, xs]) => xs.length);
+  const end = parseYmd(k); let hist = '';
+  for (let i = 6; i >= 0; i--) { const dt = addDays(end, -i); const ad = suppAdherence(ymd(dt)); const p = ad ? ad.pct : 0;
+    hist += `<div class="sh ${p >= 1 ? 'full' : p > 0 ? 'part' : ''} ${i === 0 ? 'cur' : ''}"><span>${WD[dt.getDay()][0]}</span><b>${Math.round(p * 100)}%</b></div>`; }
+  const st = suppStreak();
+  return `<section class="card"><div class="row between"><div><div class="eyebrow accent">Supplements</div><h2>${a.n}/${a.total} taken</h2></div>${ring(a.n, a.total, 'sm', '#30d158')}</div>
+    ${groups.map(([tl, xs]) => `<div class="sgroup"><div class="lbl">${tl}</div>${xs.map(x => { const ts = d.supps[x.id]; return `<button class="supp ${ts ? 'on' : ''}" data-act="supp" data-id="${x.id}">
+      <span class="tick">${ts ? '✓' : ''}</span><span class="grow"><b>${esc(x.name)}</b>${x.example ? ' <span class="chip sm warn">example</span>' : ''}<small>${esc(x.dose)}</small></span><small class="stime">${ts ? fmtTime(ts) : 'tap when taken'}</small></button>`; }).join('')}</div>`).join('')}
+    <div class="row between"><h3 class="mt">Last 7 days</h3><span class="chip">🔥 ${st}-day streak</span></div><div class="shist">${hist}</div>
+    ${list.some(x => x.example) ? '<p class="muted sm">Items marked <b>example</b> are starters — edit or remove them in Settings → Supplements.</p>' : ''}</section>`;
+}
+function injectionCard(onToday) {
+  const st = injectionStatus(); const s = state.settings;
+  const dayName = WD_LONG[s.injectionDay]; const winEnd = WD_LONG[(s.injectionDay + (s.injectionWindowDays || 2) - 1) % 7];
+  const head = { done: ['ok', '✓ Done this week'], due: ['warn', 'Due now'], overdue: ['danger', 'Overdue'], unknown: ['', 'Not logged yet'] }[st.status];
+  let msg;
+  if (st.status === 'done') msg = `Logged ${shortDate(new Date(st.last.ts))}${st.last.site ? ' · ' + esc(st.last.site) : ''}. Next due <b>${shortDate(st.nextDue)}</b>.`;
+  else if (st.status === 'due') msg = `Weekly tirzepatide due <b>${shortDate(st.lastDue)}</b> (window ${dayName}–${winEnd}).`;
+  else if (st.status === 'overdue') msg = `Was due <b>${shortDate(st.lastDue)}</b> (${dayName}–${winEnd} window). If you missed it, follow your prescriber's missed-dose instructions.`;
+  else msg = `Injection day is ${dayName} (due ${dayName}–${winEnd}). Log this week's shot to start tracking.`;
+  const sites = ['Abdomen L', 'Abdomen R', 'Thigh L', 'Thigh R', 'Arm L', 'Arm R'];
+  const hist = [...state.injections].sort((a, b) => b.ts.localeCompare(a.ts)).slice(0, 4);
+  return `<section class="card inj ${st.status}"><div class="row between"><div><div class="eyebrow accent">💉 Tirzepatide</div><h2>${head[1]}</h2></div><span class="chip ${head[0]}">${dayName}</span></div>
+    <p class="muted">${msg}</p>
+    ${st.status !== 'done' ? `${onToday ? '' : `<select id="injSite" class="inp"><option value="">Site (optional)</option>${sites.map(x => `<option>${x}</option>`).join('')}</select>`}
+      <div class="quick"><button class="btn primary" data-act="logInj">Log injection now</button>${st.daysSinceDue > 0 ? `<button class="btn" data-act="logInj" data-back="1">Took it ${WD[st.lastDue.getDay()]} ${st.lastDue.getDate()}</button>` : ''}</div>` : ''}
+    ${!onToday && hist.length ? `<ul class="mini">${hist.map(i => `<li><span>${shortDate(new Date(i.ts))}</span><b>${esc([i.dose, i.site].filter(Boolean).join(' · ') || 'logged')}</b><button class="link" data-act="delInj" data-id="${i.id}">✕</button></li>`).join('')}</ul>` : ''}
+    ${st.last && st.last.site && !onToday ? `<p class="muted sm">Last site: ${esc(st.last.site)} — rotate sites.</p>` : ''}</section>`;
+}
+
 function bar(v, max, color) { const p = Math.min(100, (v / (max || 1)) * 100); return `<div class="bar"><i style="width:${p}%;${color ? `background:${color}` : ''}"></i></div>`; }
-function ring(v, max) {
+function ring(v, max, size = '', color = '#ff4d1a') {
   const r = 40, c = 2 * Math.PI * r, p = Math.min(1, v / (max || 1));
-  return `<svg class="ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="${r}" stroke="#26262c" stroke-width="11" fill="none"/>
-    <circle cx="50" cy="50" r="${r}" stroke="#ff4d1a" stroke-width="11" fill="none" stroke-linecap="round" stroke-dasharray="${c * p} ${c}" transform="rotate(-90 50 50)"/>
-    <text x="50" y="56" text-anchor="middle" font-size="20" font-weight="800" fill="#fff">${Math.round(p * 100)}%</text></svg>`;
+  const id = 'r' + Math.random().toString(36).slice(2, 7);
+  return `<svg class="ring ${size}" viewBox="0 0 100 100"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${color === '#ff4d1a' ? '#ff7a3d' : color}"/><stop offset="1" stop-color="${color}"/></linearGradient></defs>
+    <circle cx="50" cy="50" r="${r}" stroke="#26262c" stroke-width="${size === 'big' ? 9 : 11}" fill="none"/>
+    <circle cx="50" cy="50" r="${r}" stroke="url(#${id})" stroke-width="${size === 'big' ? 9 : 11}" fill="none" stroke-linecap="round" stroke-dasharray="${c * p} ${c}" transform="rotate(-90 50 50)"/>
+    ${size === 'big' ? '' : `<text x="50" y="57" text-anchor="middle" font-size="22" font-weight="800" fill="#fff">${Math.round(p * 100)}%</text>`}</svg>`;
 }
 
 // =========================================================== SETTINGS
@@ -317,11 +376,27 @@ function viewSettings() {
         <label class="mini-l">Reps<input class="inp num" type="number" data-change="plo" data-w="${wi}" data-x="${xi}" value="${x.reps[0]}"></label>–
         <label class="mini-l"><input class="inp num" type="number" data-change="phi" data-w="${wi}" data-x="${xi}" value="${x.reps[1]}"></label></div></div>`).join('')}</div>`).join('')}
     <button class="btn ghost" data-act="resetProgram">Reset program to Coach Dre default</button></section>`;
+  h += `<section class="card"><h3>Supplements</h3><p class="muted sm">Daily checklist on the Daily tab. Reorder with ↑ ↓.</p>
+    <div id="suppEditor">${state.supplements.map((x, i) => `<div class="pslot sedit" data-id="${x.id}"><div class="row gap">
+      <input class="inp grow" data-change="suppName" data-id="${x.id}" value="${esc(x.name)}" placeholder="Name" aria-label="Supplement name">
+      ${x.example ? '<span class="chip sm warn">example</span>' : ''}</div>
+      <div class="row gap"><input class="inp sdose" data-change="suppDose" data-id="${x.id}" value="${esc(x.dose)}" placeholder="Dose" aria-label="Dose">
+      <select class="inp stiming" data-change="suppTiming" data-id="${x.id}" aria-label="Timing">${SUPP_TIMINGS.map(([v, l]) => `<option value="${v}" ${v === x.timing ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="row gap sbtns"><button class="icon" data-act="suppMove" data-id="${x.id}" data-n="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button><button class="icon" data-act="suppMove" data-id="${x.id}" data-n="1" ${i === state.supplements.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
+      <span class="grow"></span><button class="btn ghost sm" data-act="suppDel" data-id="${x.id}">Remove</button></div></div>`).join('') || '<p class="muted">No supplements.</p>'}</div>
+    <button class="btn primary wide" data-act="suppAdd">+ Add supplement</button></section>`;
+  h += `<section class="card"><h3>Protein quick foods</h3><p class="muted sm">One-tap presets on the Daily tab.</p>
+    ${state.quickFoods.map(f => `<div class="row gap qfrow"><input class="inp grow" data-change="qfName" data-id="${f.id}" value="${esc(f.name)}" aria-label="Food name"><input class="inp num" type="number" inputmode="numeric" data-change="qfG" data-id="${f.id}" value="${f.g}" aria-label="Grams"><span class="unit">g</span><button class="icon" data-act="qfDel" data-id="${f.id}" aria-label="Remove">✕</button></div>`).join('')}
+    <button class="btn ghost wide" data-act="qfAdd">+ Add quick food</button></section>`;
+  h += `<section class="card"><h3>Tirzepatide injection</h3><p class="muted sm">Weekly reminder on Today/Daily. Due on the injection day, still "due" the next day, then overdue.</p>
+    <div class="frow"><label>Injection day</label><select class="inp" data-change="injDay">${WD_LONG.map((n, i) => `<option value="${i}" ${i === s.injectionDay ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+    <div class="frow"><label>Due window (days)</label><input class="inp num" type="number" min="1" max="4" data-change="injWin" value="${s.injectionWindowDays}"></div>
+    <div class="frow"><label>Dose label (optional)</label><input class="inp num wide2" data-change="injDose" value="${esc(s.injectionDose)}" placeholder="e.g. 5 mg"></div></section>`;
   h += `<section class="card"><h3>Data</h3><p class="muted sm">Everything is stored only on this phone. Export a backup regularly.</p>
     <div class="quick"><button class="btn primary" data-act="export">Export JSON</button><button class="btn" data-act="import">Import JSON</button></div>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
     <button class="btn danger wide" data-act="resetAll">Erase all data</button>
-    <p class="muted sm">${doneSessions().length} sessions · ${state.bodyweight.length} weigh-ins · ${state.dizzyEvents.length} dizziness events</p></section>`;
+    <p class="muted sm">${doneSessions().length} sessions · ${state.bodyweight.length} weigh-ins · ${state.dizzyEvents.length} dizziness events · ${state.injections.length} injections · ${state.supplements.length} supplements</p></section>`;
   h += `<section class="card"><h3>Safety</h3><p class="muted sm">Don't lift fasted. Eat carbs + protein 1–2 h before, drink water/electrolytes. If dizzy or lightheaded: stop, sit or lie down, sip fluids, have some fast carbs. Fainting, chest pain, or confusion → call 911. Tell your prescriber about repeated dizziness.</p>
     <p class="muted sm">Rep v1 · personal use</p></section>`;
   return h;
@@ -486,7 +561,23 @@ const actions = {
   },
   cls: () => { const d = day(); d.cls = !d.cls; save(); render(); toast(d.cls ? 'Class logged — counts toward streak' : 'Class removed'); },
   steps: el => { const d = day(tab === 'daily' ? ui.dailyDate : ymd()); d.steps = Math.max(0, (+d.steps || 0) + +el.dataset.n); save(); render(); },
-  addP: el => { const d = day(ui.dailyDate); d.protein = Math.max(0, d.protein + +el.dataset.n); save(); render(); },
+  addP: el => addProtein(+el.dataset.n, ''),
+  addFood: el => { const f = state.quickFoods.find(x => x.id === el.dataset.id); if (f) addProtein(f.g, f.name); },
+  addCustomP: () => { const g = parseFloat($('#pG').value); if (!(g > 0)) return toast('Enter grams'); addProtein(g, $('#pLabel').value.trim()); },
+  delP: el => delProtein(el.dataset.id),
+  supp: el => { const d = day(ui.dailyDate); const id = el.dataset.id; if (d.supps[id]) delete d.supps[id]; else d.supps[id] = nowFor(ui.dailyDate); save(); render(); },
+  suppAdd: () => { state.supplements.push({ id: uid(), name: 'New supplement', dose: '', timing: 'morning' }); save(); render(); const els = document.querySelectorAll('[data-change=suppName]'); const el = els[els.length - 1]; if (el) { el.focus(); el.select(); } },
+  suppDel: el => { const x = state.supplements.find(y => y.id === el.dataset.id); if (x && confirm(`Remove ${x.name}?`)) { state.supplements = state.supplements.filter(y => y !== x); save(); render(); } },
+  suppMove: el => { const L = state.supplements; const i = L.findIndex(y => y.id === el.dataset.id); const j = i + +el.dataset.n; if (i < 0 || j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; save(); render(); },
+  qfAdd: () => { state.quickFoods.push({ id: uid(), name: 'New food', g: 20 }); save(); render(); },
+  qfDel: el => { state.quickFoods = state.quickFoods.filter(f => f.id !== el.dataset.id); save(); render(); },
+  logInj: el => {
+    const st = injectionStatus(); const back = el.dataset.back === '1';
+    const dt = back ? new Date(st.lastDue.getFullYear(), st.lastDue.getMonth(), st.lastDue.getDate(), 9) : new Date();
+    state.injections.push({ id: uid(), ts: dt.toISOString(), date: ymd(dt), dose: state.settings.injectionDose || '', site: $('#injSite')?.value || '' });
+    save(); render(); toast('Injection logged');
+  },
+  delInj: el => { if (confirm('Delete this injection log?')) { state.injections = state.injections.filter(i => i.id !== el.dataset.id); save(); render(); } },
   addK: el => { const d = day(ui.dailyDate); d.kcal = Math.max(0, d.kcal + +el.dataset.n); save(); render(); },
   addW: el => { const d = day(ui.dailyDate); d.waterOz = Math.max(0, d.waterOz + +el.dataset.n); save(); render(); },
   sleep: el => { const d = day(ui.dailyDate); d.sleep = Math.max(0, Math.min(14, (d.sleep ?? 7) + (d.sleep == null ? 0 : +el.dataset.n))); save(); render(); },
@@ -512,6 +603,13 @@ const actions = {
   timerSkip: () => stopTimer(),
 };
 
+function nowFor(k) { return k === ymd() ? new Date().toISOString() : new Date(parseYmd(k).getTime() + 12 * 3600000).toISOString(); }
+function addProtein(g, label) {
+  const d = day(ui.dailyDate); d.proteinLog.push({ id: uid(), ts: nowFor(ui.dailyDate), g, label }); recalcProtein(d); save(); render();
+  toast(`+${g} g${label ? ' · ' + label : ''}`);
+}
+function delProtein(id) { const d = day(ui.dailyDate); d.proteinLog = d.proteinLog.filter(e => e.id !== id); recalcProtein(d); save(); render(); toast('Entry deleted'); }
+
 function addBw(date, lb) {
   state.bodyweight = state.bodyweight.filter(b => b.date !== date); state.bodyweight.push({ date, lb });
   state.bodyweight.sort((a, b) => a.date.localeCompare(b.date)); save(); render(); toast(`Saved ${lb} lb`);
@@ -521,7 +619,14 @@ const changes = {
   badDayPre: el => { ui.badDay = el.checked; if (ui.pre && $('#sheet').classList.contains('open')) precheckSheet(ui.pre.w); else render(); },
   badDay: el => { state.active.badDay = el.checked; save(); render(); },
   progEx: el => { ui.progEx = el.value; render(); },
-  setP: el => { day(ui.dailyDate).protein = Math.max(0, +el.value || 0); save(); render(); },
+  suppName: el => { const x = state.supplements.find(y => y.id === el.dataset.id); if (x) { x.name = el.value; delete x.example; save(); } },
+  suppDose: el => { const x = state.supplements.find(y => y.id === el.dataset.id); if (x) { x.dose = el.value; delete x.example; save(); } },
+  suppTiming: el => { const x = state.supplements.find(y => y.id === el.dataset.id); if (x) { x.timing = el.value; delete x.example; save(); render(); } },
+  qfName: el => { const f = state.quickFoods.find(y => y.id === el.dataset.id); if (f) { f.name = el.value; save(); } },
+  qfG: el => { const f = state.quickFoods.find(y => y.id === el.dataset.id); if (f) { f.g = Math.max(0, +el.value || 0); save(); } },
+  injDay: el => { state.settings.injectionDay = +el.value; save(); toast('Injection day saved'); },
+  injWin: el => { state.settings.injectionWindowDays = Math.max(1, Math.min(4, +el.value || 2)); save(); },
+  injDose: el => { state.settings.injectionDose = el.value; save(); },
   setK: el => { day(ui.dailyDate).kcal = Math.max(0, +el.value || 0); save(); render(); },
   setSteps: el => { day(ui.dailyDate).steps = Math.max(0, +el.value || 0); save(); render(); },
   setSleep: el => { day(ui.dailyDate).sleep = el.value === '' ? null : +el.value; save(); render(); },
@@ -591,6 +696,15 @@ document.addEventListener('input', e => {
   const s = visible(state.active)[+el.dataset.i].sets[+el.dataset.j]; s[el.dataset.f] = el.value === '' ? '' : +el.value; save();
 });
 document.addEventListener('pointerdown', unlockAudio, { once: true });
+let sw = null;
+document.addEventListener('pointerdown', e => { const row = e.target.closest('.swipe'); if (row && !e.target.closest('button')) sw = { row, x: e.clientX, y: e.clientY, dx: 0 }; });
+document.addEventListener('pointermove', e => {
+  if (!sw) return; sw.dx = Math.min(0, e.clientX - sw.x);
+  if (Math.abs(e.clientY - sw.y) > 30 && Math.abs(sw.dx) < 20) { sw.row.style.transform = ''; sw = null; return; }
+  sw.row.style.transform = `translateX(${sw.dx}px)`; sw.row.classList.toggle('arm', sw.dx < -90);
+});
+const endSwipe = () => { if (!sw) return; const { row, dx } = sw; sw = null; if (dx < -90) { row.style.transform = 'translateX(-110%)'; setTimeout(() => delProtein(row.dataset.id), 150); } else { row.style.transform = ''; row.classList.remove('arm'); } };
+document.addEventListener('pointerup', endSwipe); document.addEventListener('pointercancel', endSwipe);
 document.addEventListener('change', e => {
   if (e.target.id !== 'importFile') return; const f = e.target.files[0]; if (!f) return;
   const r = new FileReader();
@@ -610,4 +724,4 @@ if (state.active) wake(true);
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(() => { });
 
 // test hook (used by scripts/e2e.mjs)
-window.__rep = { get state() { return state; }, render };
+window.__rep = { get state() { return state; }, render, injectionStatus, suppAdherence };

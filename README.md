@@ -13,7 +13,7 @@ npm i && npm run e2e # Playwright (playwright-core + system Chrome) mobile smoke
 Host the `dist/` folder (or the repo root) on Cloudflare Pages or GitHub Pages — no build command needed beyond `npm run build`. HTTPS is required for the service worker / "Install app". On Android Chrome: open the URL → ⋮ → **Add to Home screen / Install app**. Bump `VERSION` in `sw.js` when you change files so phones pick up updates.
 
 ## Change the program
-Everything Coach Dre controls lives in **`src/program.js`**: workouts (exercise id, sets, rep range), weekly schedule, daily targets, progression increments, deload rules, rest timers, bodyweight start/goal. Exercise ids, form cues, muscles and swap groups are in **`src/exercises.js`**.
+Everything Coach Dre controls lives in **`src/program.js`**: workouts, starter supplements, protein quick foods, (exercise id, sets, rep range), weekly schedule, daily targets, progression increments, deload rules, rest timers, bodyweight start/goal. Exercise ids, form cues, muscles and swap groups are in **`src/exercises.js`**.
 In-app edits (Settings → Schedule / Program / Targets) are stored on the device and override the file; "Reset program to Coach Dre default" reloads `program.js`.
 
 ## Features
@@ -25,6 +25,9 @@ In-app edits (Settings → Schedule / Program / Targets) are stored on the devic
 - **Recovery map**: front/back SVG body, colored by hours since each muscle was trained (72 h compounds, 48 h isolation/secondary) + readiness of the next workout.
 - **Progress**: bodyweight chart with goal line (seeded 255 lb on 2026-10-23, goal 200), est. 1RM (Epley) / top-set chart per exercise, calendar (lifts, classes, dizzy days), session history.
 - **Daily**: Coach Dre targets (1,800 kcal / 210 g P / ~55 g F / ~125 g C), protein quick-add (+10/+25/+40), optional kcal, water, steps (7,000 default; 6–8k on steps days), sleep, dizziness yes/no + note. Any past day can be edited.
+- **Protein tracker** (Daily hero card): big ring toward 210 g, +10/+25/+40, saved quick foods (editable presets), custom grams + label, today's timed log (swipe left or tap ✕ to delete), 7-day bar chart vs goal (Daily + Progress).
+- **Supplements**: daily checklist grouped by timing (Morning / Pre-workout / Post-workout / Evening), tap to mark taken (time stamped), adherence %, 7-day history + 100%-day streak. Starter items (Creatine 5 g, Multivitamin, Electrolytes) are marked *example*; edit/add/reorder/remove in Settings.
+- **Tirzepatide injection reminder**: default Saturday; due Sat–Sun, overdue from Monday until logged (window and day editable). Log now or back-date to the injection day; optional dose label and site with rotation hint.
 - **Settings**: schedule per weekday (lift A/B/C/D, steps, class/other training, rest), streak target, cycle start / deload, rest timers, sound/vibration, targets, program editor, Export / Import / Erase.
 - **Offline**: service worker caches the app shell.
 

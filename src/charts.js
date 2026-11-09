@@ -33,3 +33,21 @@ export function lineChart(points, { goal = null, unit = '', height = 190, color 
     <text x="${W - R}" y="${H - 8}" text-anchor="end" font-size="10" fill="#8e8e96">${fmtDate(x1)}</text>
   </svg>`;
 }
+
+// Vertical bar chart vs goal line. bars: [{label, value, highlight}]
+export function barChart(bars, { goal = null, unit = '', height = 170, color = '#ff4d1a', okColor = '#30d158' } = {}) {
+  const W = 360, H = height, L = 30, R = 8, T = 18, B = 24;
+  const max = Math.max(goal || 0, ...bars.map(b => b.value), 1) * 1.1;
+  const bw = (W - L - R) / bars.length;
+  const sy = v => T + (1 - v / max) * (H - T - B);
+  let out = '';
+  bars.forEach((b, i) => {
+    const x = L + i * bw + bw * 0.18, w = bw * 0.64, y = sy(b.value), hgt = H - B - y;
+    const hit = goal != null && b.value >= goal;
+    out += `<rect x="${x}" y="${y}" width="${w}" height="${Math.max(hgt, b.value ? 2 : 0)}" rx="6" fill="${hit ? okColor : color}" opacity="${b.highlight ? 1 : 0.75}"/>`;
+    if (b.value) out += `<text x="${x + w / 2}" y="${y - 5}" text-anchor="middle" font-size="10" font-weight="700" fill="#d6d6dc">${Math.round(b.value)}</text>`;
+    out += `<text x="${x + w / 2}" y="${H - 7}" text-anchor="middle" font-size="11" font-weight="${b.highlight ? 800 : 600}" fill="${b.highlight ? '#fff' : '#8e8e96'}">${b.label}</text>`;
+  });
+  const g = goal != null ? `<line x1="${L}" x2="${W - R}" y1="${sy(goal)}" y2="${sy(goal)}" stroke="#30d158" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${L - 4}" y="${sy(goal) + 4}" text-anchor="end" font-size="10" fill="#30d158" font-weight="700">${goal}</text>` : '';
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" aria-label="bar chart">${g}${out}</svg>`;
+}

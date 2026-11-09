@@ -1,5 +1,5 @@
 // Local-only persistence (localStorage). Export/Import lives in Settings.
-import { PROGRAM, DEFAULT_SCHEDULE, DEFAULT_TARGETS, DEFAULT_REST, BODYWEIGHT } from './program.js';
+import { PROGRAM, DEFAULT_SCHEDULE, DEFAULT_TARGETS, DEFAULT_REST, BODYWEIGHT, DEFAULT_SUPPLEMENTS, DEFAULT_QUICK_FOODS } from './program.js';
 
 const KEY = 'rep-workout.v1';
 export const clone = o => JSON.parse(JSON.stringify(o));
@@ -30,7 +30,13 @@ function defaults() {
       cycleStart: ymd(mondayOf(new Date())),
       deloadEnabled: true,
       goalWeight: BODYWEIGHT.goal,
+      injectionDay: 6,       // tirzepatide: Saturday (window Sat–Sun, overdue after)
+      injectionWindowDays: 2,
+      injectionDose: '',
     },
+    supplements: clone(DEFAULT_SUPPLEMENTS),
+    quickFoods: clone(DEFAULT_QUICK_FOODS),
+    injections: [],
     sessions: [],
     active: null,
     daily: {},
@@ -47,7 +53,7 @@ function migrate(s) {
   out.settings.targets = { ...d.settings.targets, ...((s.settings || {}).targets || {}) };
   out.settings.rest = { ...d.settings.rest, ...((s.settings || {}).rest || {}) };
   if (!Array.isArray(out.settings.schedule) || out.settings.schedule.length !== 7) out.settings.schedule = d.settings.schedule;
-  for (const k of ['sessions', 'bodyweight', 'dizzyEvents']) if (!Array.isArray(out[k])) out[k] = d[k];
+  for (const k of ['sessions', 'bodyweight', 'dizzyEvents', 'supplements', 'quickFoods', 'injections']) if (!Array.isArray(out[k])) out[k] = d[k];
   if (!out.program || !Array.isArray(out.program.workouts)) out.program = d.program;
   if (!out.daily || typeof out.daily !== 'object') out.daily = {};
   return out;
@@ -67,7 +73,13 @@ export function replaceState(obj) { state = migrate(obj); save(); }
 export function resetAll() { localStorage.removeItem(KEY); state = defaults(); save(); }
 export function resetProgram() { state.program = clone(PROGRAM); save(); }
 
+export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
 export function day(date = ymd()) {
   if (!state.daily[date]) state.daily[date] = { protein: 0, kcal: 0, waterOz: 0, sleep: null, steps: 0, dizzy: null, dizzyNote: '', cls: false };
-  return state.daily[date];
+  const d = state.daily[date];
+  if (!Array.isArray(d.proteinLog)) d.proteinLog = d.protein ? [{ id: uid(), ts: null, g: d.protein, label: 'earlier' }] : [];
+  if (!d.supps || typeof d.supps !== 'object') d.supps = {};
+  return d;
 }
+export function recalcProtein(d) { d.protein = d.proteinLog.reduce((a, e) => a + (+e.g || 0), 0); }

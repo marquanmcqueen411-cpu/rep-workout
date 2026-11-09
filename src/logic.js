@@ -135,3 +135,38 @@ export function streak() {
   if (thisWeek >= target) n++;
   return { weeks: n, thisWeek, target };
 }
+
+// ---- Supplements
+export function suppAdherence(dateKey) {
+  const list = state.supplements; if (!list.length) return null;
+  const taken = (state.daily[dateKey] && state.daily[dateKey].supps) || {};
+  const n = list.filter(s => taken[s.id]).length;
+  return { n, total: list.length, pct: n / list.length };
+}
+export function suppStreak() {
+  // consecutive 100% days ending today (or yesterday if today isn't complete yet)
+  let n = 0; let d = new Date();
+  const full = dt => { const a = suppAdherence(ymd(dt)); return a && a.n === a.total; };
+  if (!full(d)) d = addDays(d, -1);
+  while (full(d) && n < 3650) { n++; d = addDays(d, -1); }
+  return n;
+}
+
+// ---- Tirzepatide injection (weekly; due window = injection day + following day(s))
+export function injectionStatus(today = new Date()) {
+  const wd = state.settings.injectionDay, win = Math.max(1, state.settings.injectionWindowDays || 2);
+  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const lastDue = addDays(t0, -((t0.getDay() - wd + 7) % 7));
+  const nextDue = addDays(lastDue, 7);
+  const sorted = [...state.injections].sort((a, b) => b.ts.localeCompare(a.ts));
+  const last = sorted[0] || null;
+  const earliestOk = ymd(addDays(lastDue, -2)); // logged up to 2 days early still counts
+  const done = sorted.some(i => i.date >= earliestOk && i.date <= ymd(t0));
+  const daysSinceDue = Math.round((t0 - lastDue) / 86400000);
+  let status;
+  if (!state.injections.length) status = 'unknown';
+  else if (done) status = 'done';
+  else if (daysSinceDue < win) status = 'due';
+  else status = 'overdue';
+  return { status, lastDue, nextDue: done ? nextDue : lastDue, last, daysSinceDue, windowEnd: addDays(lastDue, win - 1) };
+}

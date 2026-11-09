@@ -38,9 +38,27 @@ await page.evaluate(() => {
   const bw = [['2026-10-26', 254.2], ['2026-10-30', 253.6], ['2026-11-02', 253.0], ['2026-11-05', 252.8]];
   for (const [date, lb] of bw) s.bodyweight.push({ date, lb });
   s.daily[ymd(iso(1, 12))] = { protein: 205, kcal: 1780, waterOz: 96, sleep: 7, steps: 7400, dizzy: false, dizzyNote: '', cls: true };
+  // past 6 days of protein + supplements
+  const pv = [212, 168, 190, 225, 150, 205];
+  pv.forEach((g, i) => { const k = ymd(iso(i + 1, 12)); const d = s.daily[k] || (s.daily[k] = { protein: 0, kcal: 0, waterOz: 0, sleep: null, steps: 0, dizzy: null, dizzyNote: '', cls: false });
+    d.protein = g; d.proteinLog = [{ id: 'p' + i, ts: iso(i + 1, 13).toISOString(), g, label: 'seed' }];
+    d.supps = {}; s.supplements.forEach((x, j) => { if (i < 3 || j < 2) d.supps[x.id] = iso(i + 1, 8).toISOString(); }); });
   localStorage.setItem('rep-workout.v1', JSON.stringify(s)); location.reload();
 });
 await page.waitForSelector('.hero');
+page.on('dialog', d => d.accept().catch(() => {}));
+assert(await page.locator('.inj >> text=Tirzepatide').count(), 'injection card on Today (not logged yet)');
+
+// ---- injection due-window logic (default Saturday, due Sat–Sun, overdue Mon)
+const inj = await page.evaluate(() => {
+  const R = window.__rep, s = R.state, saved = s.injections;
+  s.injections = [{ id: 't', ts: new Date(2026, 9, 31, 9).toISOString(), date: '2026-10-31' }];
+  const r = { fri: R.injectionStatus(new Date(2026, 10, 6)).status, sat: R.injectionStatus(new Date(2026, 10, 7)).status, sun: R.injectionStatus(new Date(2026, 10, 8)).status, mon: R.injectionStatus(new Date(2026, 10, 9)).status };
+  s.injections.push({ id: 't2', ts: new Date(2026, 10, 8, 9).toISOString(), date: '2026-11-08' });
+  r.monAfter = R.injectionStatus(new Date(2026, 10, 9)).status;
+  s.injections = saved; return r;
+});
+assert(inj.fri === 'done' && inj.sat === 'due' && inj.sun === 'due' && inj.mon === 'overdue' && inj.monAfter === 'done', 'injection window: Sat due, Sun due, Mon overdue, Sun-logged = done ' + JSON.stringify(inj));
 
 // ---- Monday weigh-in prompt (only shows on Mondays)
 if (new Date().getDay() === 1) {
@@ -113,16 +131,66 @@ await page.screenshot({ path: SHOTS + '03-progress.png', fullPage: false });
 await page.evaluate(() => document.querySelector('.cal').scrollIntoView({ block: 'center' }));
 await page.screenshot({ path: SHOTS + '06-progress-calendar.png' });
 
-// ---- Daily
+// ---- Daily: protein hero
 await page.click('.tabbar [data-tab=daily]');
-await page.click('[data-act=addP][data-n="40"]'); await page.click('[data-act=addP][data-n="25"]'); await page.click('[data-act=addP][data-n="40"]');
+const P = () => page.evaluate(() => { const d = window.__rep.state.daily[Object.keys(window.__rep.state.daily).sort().at(-1)]; return { g: d.protein, n: d.proteinLog.length }; });
+await page.click('[data-act=addP][data-n="40"]');
+await page.click('.food:has-text("Protein shake")');
+await page.fill('#pG', '32'); await page.fill('#pLabel', 'chicken'); await page.click('[data-act=addCustomP]');
+let pr = await P(); assert(pr.g === 122 && pr.n === 3, `protein log 40 + shake 50 + chicken 32 = 122 g (${pr.g})`);
+assert(await page.locator('.plog >> text=chicken').count(), 'labelled entry shows in today log');
+await page.click('.plog li:has-text("+40 g") [data-act=delP]');
+pr = await P(); assert(pr.g === 82 && pr.n === 2, 'tap ✕ deletes entry (82 g)');
+// swipe left on the chicken row
+const row = page.locator('.plog li:has-text("chicken")'); const bb = await row.boundingBox();
+await page.mouse.move(bb.x + bb.width - 80, bb.y + bb.height / 2); await page.mouse.down();
+for (let k = 1; k <= 8; k++) await page.mouse.move(bb.x + bb.width - 80 - k * 25, bb.y + bb.height / 2);
+await page.mouse.up(); await page.waitForTimeout(400);
+pr = await P(); assert(pr.g === 50 && pr.n === 1, 'swipe-left deletes entry (50 g)');
+// rebuild a realistic day for the screenshot
+await page.click('.food:has-text("Greek yogurt")');
+await page.fill('#pG', '45'); await page.fill('#pLabel', 'chicken'); await page.click('[data-act=addCustomP]');
+await page.click('[data-act=addP][data-n="25"]');
+pr = await P(); assert(pr.g === 138, 'protein total 138 g');
+assert(await page.locator('svg.chart').count() >= 1, '7-day protein chart renders');
+// supplements
+await page.click('.supp:has-text("Creatine")'); await page.click('.supp:has-text("Electrolytes")');
+const ad = await page.evaluate(() => { const R = window.__rep; const k = Object.keys(R.state.daily).sort().at(-1); return R.suppAdherence(k); });
+assert(ad.n === 2 && ad.total === 3, 'supplement adherence 2/3');
+assert(await page.locator('.supp.on .stime').first().textContent() !== 'tap when taken', 'taken time recorded');
+await page.click('.supp:has-text("Electrolytes")'); await page.click('.supp:has-text("Electrolytes")');
+// other daily fields
 await page.click('[data-act=addW][data-n="16"]'); await page.click('[data-act=addW][data-n="8"]');
 await page.click('[data-act=addK][data-n="500"]');
 await page.fill('input[data-change=setSteps]', '5400'); await page.press('input[data-change=setSteps]', 'Enter'); await page.locator('h1').click();
 await page.click('[data-act=sleep][data-n="0.5"]');
-assert(await page.locator('.big >> text=105').count(), 'protein quick-add 105 g');
+await page.waitForTimeout(1900);
 await page.evaluate(() => window.scrollTo(0, 0));
-await page.screenshot({ path: SHOTS + '04-daily-nutrition.png' });
+await page.screenshot({ path: SHOTS + '04-daily-protein-hero.png' });
+await page.evaluate(() => document.querySelector('.plog').scrollIntoView({ block: 'start' }));
+await page.evaluate(() => window.scrollBy(0, -12));
+await page.screenshot({ path: SHOTS + '08-daily-protein-log-7day.png' });
+await page.evaluate(() => { const el = [...document.querySelectorAll('.card')].find(c => c.textContent.includes('taken') && c.querySelector('.supp')); el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -12); });
+await page.screenshot({ path: SHOTS + '09-daily-supplements.png' });
+// injection: log it as taken Saturday
+await page.click('.inj [data-act=logInj][data-back="1"]');
+assert((await page.evaluate(() => window.__rep.injectionStatus().status)) === 'done', 'injection back-logged for Saturday → done');
+
+// ---- Settings: supplement editor (add / edit / reorder / remove)
+await page.click('.tabbar [data-tab=settings]');
+await page.click('[data-act=suppAdd]');
+const nm = page.locator('[data-change=suppName]').last();
+await nm.fill('Fish oil'); await nm.press('Tab');
+await page.locator('[data-change=suppDose]').last().fill('2 caps'); await page.locator('[data-change=suppDose]').last().press('Tab');
+await page.locator('[data-change=suppTiming]').last().selectOption('evening');
+const fid = await page.evaluate(() => window.__rep.state.supplements.at(-1).id);
+await page.click(`[data-act=suppMove][data-id="${fid}"][data-n="-1"]`);
+await page.click('[data-act=suppDel][data-id="ex-multi"]');
+const sl = await page.evaluate(() => window.__rep.state.supplements.map(x => `${x.name}|${x.dose}|${x.timing}`));
+assert(JSON.stringify(sl) === JSON.stringify(['Creatine|5 g|morning', 'Fish oil|2 caps|evening', 'Electrolytes|1 packet|pre']), 'supplement add/edit/reorder/remove ' + JSON.stringify(sl));
+await page.evaluate(() => { const h = [...document.querySelectorAll('.card h3')].find(x => x.textContent === 'Supplements'); h.scrollIntoView({ block: 'start' }); window.scrollBy(0, -12); });
+await page.waitForTimeout(2000);
+await page.screenshot({ path: SHOTS + '10-settings-supplements.png' });
 
 // ---- Settings: schedule edit + export/import round trip
 await page.click('.tabbar [data-tab=settings]');
@@ -133,10 +201,10 @@ const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data
 const path = SHOTS + '../.e2e-backup.json'; await dl.saveAs(path);
 const backup = JSON.parse(readFileSync(path, 'utf8'));
 assert(backup.data.sessions.length === 7, 'export contains sessions');
-page.on('dialog', d => d.accept().catch(() => {}));
+assert(backup.data.supplements.length === 3 && backup.data.injections.length === 1 && backup.data.quickFoods.length === 4, 'export contains supplements, injections, quick foods');
 await page.evaluate(() => localStorage.clear());
 await page.setInputFiles('#importFile', path);
-await page.waitForFunction(() => window.__rep.state.sessions.length === 7);
+await page.waitForFunction(() => window.__rep.state.sessions.length === 7 && window.__rep.state.supplements.length === 3);
 log('ok - import restored backup');
 
 // ---- offline: service worker serves app shell
@@ -147,7 +215,8 @@ log('ok - loads offline via service worker'); await ctx.setOffline(false);
 // ---- clear sample data
 await page.evaluate(() => { localStorage.clear(); });
 await page.reload(); await page.waitForSelector('.hero');
-const fresh = await page.evaluate(() => ({ s: window.__rep.state.sessions.length, bw: window.__rep.state.bodyweight }));
+const fresh = await page.evaluate(() => ({ s: window.__rep.state.sessions.length, bw: window.__rep.state.bodyweight, sup: window.__rep.state.supplements, inj: window.__rep.state.injections.length }));
+assert(fresh.sup.length === 3 && fresh.sup.every(x => x.example) && fresh.inj === 0, 'fresh state has example supplements, no injections');
 assert(fresh.s === 0 && fresh.bw.length === 1 && fresh.bw[0].lb === 255, 'fresh state after clear (only seed 255 lb on 2026-10-23)');
 await page.evaluate(() => localStorage.clear());
 

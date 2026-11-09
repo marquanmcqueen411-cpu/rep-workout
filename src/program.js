@@ -94,3 +94,20 @@ export const BODYWEIGHT = {
   goal: 200,
   weighInDay: 1, // Monday-morning weigh-in prompt
 };
+
+// Supplements — STARTER EXAMPLES ONLY (edit/remove in Settings → Supplements).
+// timing: 'morning' | 'pre' | 'post' | 'evening'
+export const DEFAULT_SUPPLEMENTS = [
+  { id: 'ex-creatine', name: 'Creatine', dose: '5 g', timing: 'morning', example: true },
+  { id: 'ex-multi', name: 'Multivitamin', dose: '1 tab', timing: 'morning', example: true },
+  { id: 'ex-electrolytes', name: 'Electrolytes', dose: '1 packet', timing: 'pre', example: true },
+];
+export const SUPP_TIMINGS = [['morning', 'Morning'], ['pre', 'Pre-workout'], ['post', 'Post-workout'], ['evening', 'Evening']];
+
+// Saved quick foods for the protein tracker (editable in Settings → Quick foods).
+export const DEFAULT_QUICK_FOODS = [
+  { id: 'qf-shake', name: 'Protein shake', g: 50 },
+  { id: 'qf-chicken', name: 'Chicken breast (6 oz)', g: 50 },
+  { id: 'qf-yogurt', name: 'Greek yogurt cup', g: 18 },
+  { id: 'qf-eggs', name: '3 eggs', g: 18 },
+];
