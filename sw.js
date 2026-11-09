@@ -1,8 +1,8 @@
 // Offline-first service worker. Bump VERSION when you change files.
-const VERSION = 'rep-v1.4.0';
+const VERSION = 'rep-v1.5.0';
 const ASSETS = [
   './', './index.html', './styles.css', './manifest.json',
-  './src/app.js', './src/store.js', './src/logic.js', './src/program.js', './src/exercises.js', './src/body.js', './src/charts.js', './src/progression.js', './src/renpho.js',
+  './src/app.js', './src/store.js', './src/logic.js', './src/program.js', './src/exercises.js', './src/body.js', './src/charts.js', './src/progression.js', './src/renpho.js', './src/plates.js', './src/fatloss.js', './src/checkin.js', './src/backup.js', './src/swap.js',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png',
 ];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });

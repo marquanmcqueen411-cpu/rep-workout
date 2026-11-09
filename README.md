@@ -1,4 +1,4 @@
-# Rep — Boss's workout app (v1)
+# Rep — Boss's workout app (v1.5)
 
 Personal, mobile-first PWA (not a Fernholt product). Plain static site: vanilla JS ES modules, no framework, no backend, no accounts. All data stays on the phone (localStorage) with JSON Export/Import in Settings.
 
@@ -31,6 +31,12 @@ In-app edits (Settings → Schedule / Program / Targets) are stored on the devic
 - **Supplements**: daily checklist grouped by timing, tap to mark taken (time stamped), adherence %, 7-day history + 100%-day streak. Defaults: Creatine 5 g (Morning) and Protein shake (Post-workout — checking it off offers to add 50 g, editable, to the protein tracker; unchecking removes that entry). Tirzepatide appears as a checklist line only on injection due days (Sat–Sun by default), linked to the same injection log, and only counts toward adherence on those days. Electrolytes live in the pre-workout check. Edit/add/reorder/remove in Settings.
 - **Tirzepatide injection reminder**: default Saturday; due Sat–Sun, overdue from Monday until logged (window and day editable). Log now or back-date to the injection day; optional dose label and site with rotation hint.
 - **Settings**: schedule per weekday (lift A/B/C/D, steps, class/other training, rest), streak target, cycle start / deload, rest timers, sound/vibration, targets, program editor, Export / Import / Erase.
+- **Backup to Drive (free)**: Settings → **Backup to Drive / Files** (also a Sunday / 7-day reminder card on Today). Uses the Web Share API so Android’s share sheet can offer Drive; falls back to a JSON download. Shows “Last backed up” in Settings. No Google Cloud project or OAuth.
+- **Weekly check-in for Coach Dre**: Monday card on Today + button on Progress. Builds a plain-text summary (7-day avg weight & change, sessions done/planned, top set + e1RM change per lift, PRs, deload/stall notes, protein vs 210 g, kcal, Tue/Thu/Sun steps vs 6–8k, supplements / tirzepatide, dizziness/sleep/water). **Copy** and **Share** — paste it to Dre.
+- **Plate calculator**: on barbell / trap-bar sets, shows per-side LA Fitness plates (45/35/25/10/5/2.5) for a 45 lb bar (trap bar separately editable in Settings).
+- **Voice + vibration rest timer**: speaks “Rest over, next set” (and a “10 seconds” warning) via `speechSynthesis`, plus vibration; toggles in Settings. Screen wake lock keeps the timer alive during a workout.
+- **Exercise swap**: ⇄ on each lift lists same-pattern LA Fitness alternatives. Today-only by default, or **Make permanent in the plan**. Keeps the swap’s own history when present; otherwise suggests a conservative starting weight converted from the original lift with a short note.
+- **Smarter fat-loss tracking**: bodyweight chart overlays a 7-day moving average; shows lb/wk and % bodyweight/week, projected date to 200 lb, and a gentle flag if loss is faster than ~1.5% BW/week for 2+ weeks or several e1RMs are dropping (check protein, tell Coach Dre). No medical claims.
 - **Offline**: service worker caches the app shell.
 
 ## Layout
@@ -42,6 +48,11 @@ src/exercises.js  exercise library: equipment, muscles, cues, demo links, swap g
 src/store.js      localStorage state, dates, migrations
 src/progression.js pure overload engine (targets, jumps, stalls, deloads, PRs, warm-ups, rel. strength)
 src/renpho.js     Renpho CSV parser + bodyweight merge
+src/plates.js     LA Fitness plate calculator
+src/fatloss.js    7-day MA, loss rate, goal projection, muscle-risk flag
+src/checkin.js    Coach Dre weekly plain-text summary
+src/backup.js     Web Share / download backup + reminder
+src/swap.js       Swap alternatives + weight conversion
 src/logic.js      engine glue, program week/deload, rotation, recovery, streak
 src/body.js       front/back body SVG
 src/charts.js     tiny SVG line chart
@@ -55,5 +66,5 @@ screenshots/      e2e screenshots (sample data)
 ## Notes / limits
 - Demos link out to a YouTube search for the exercise (no hotlinked/copyrighted media); each exercise sheet also shows a highlighted muscle diagram + text cues.
 - Renpho: if a CSV has no unit in the header, kg vs lb is guessed from the values (median < 150 → kg); the preview lets you flip it. Body fat % from a scale is an estimate.
-- Data lives in this browser only — clearing site data or uninstalling deletes it. Export backups.
+- Data lives in this browser only — clearing site data or uninstalling deletes it. Use **Backup to Drive / Files** (or Export) regularly; pick Drive in the Android share sheet.
 - Not medical advice. Repeated dizziness → tell the prescriber; fainting/chest pain → 911.

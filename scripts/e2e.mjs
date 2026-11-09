@@ -261,6 +261,110 @@ await page.setInputFiles('#importFile', path);
 await page.waitForFunction(() => window.__rep.state.sessions.length === 7 && window.__rep.state.supplements.length === 2);
 log('ok - import restored backup');
 
+// ---- v1.5: backup reminder, check-in, fat-loss, plates, swap, voice settings
+await page.click('.tabbar [data-tab=today]');
+await page.waitForSelector('.hero');
+// Today is Monday Nov 9 2026 in the e2e timezone → check-in card + (likely) backup reminder
+assert(await page.locator('.card.checkin >> text=Coach Dre check-in').count(), 'Monday check-in card');
+await page.evaluate(() => { const el = document.querySelector('.card.checkin'); el?.scrollIntoView({ block: 'center' }); });
+await page.waitForTimeout(400);
+await page.screenshot({ path: SHOTS + '16-monday-checkin-card.png' });
+await page.click('[data-act=checkIn]');
+await page.waitForSelector('.panel >> text=Weekly check-in');
+assert(await page.locator('#checkInText').count(), 'check-in plain-text block');
+const checkTxt = await page.textContent('#checkInText');
+assert(/SESSIONS:/.test(checkTxt) && /Protein avg:/.test(checkTxt) && /sent from Rep/.test(checkTxt), 'check-in text has sections');
+await page.waitForTimeout(300);
+await page.screenshot({ path: SHOTS + '17-checkin-sheet.png' });
+await page.click('.panel [data-act=closeSheet]');
+
+// Progress: fat-loss stats + 7-day avg overlay + check-in button
+await page.click('.tabbar [data-tab=progress]');
+assert(await page.locator('text=Weekly check-in for Coach Dre').count(), 'Progress check-in button');
+assert(await page.locator('text=7-day avg').count(), '7-day avg fat-loss stat');
+assert(await page.locator('text=lb / wk').count(), 'lb/wk rate');
+const fatOk = await page.evaluate(() => {
+  const r = window.__rep.lossRate(window.__rep.state.bodyweight);
+  const p = window.__rep.projectGoal(window.__rep.state.bodyweight, window.__rep.state.settings.goalWeight);
+  return !!(r && r.lbPerWeek != null && p);
+});
+assert(fatOk, 'lossRate + projectGoal available on seeded data');
+await page.evaluate(() => { const h = [...document.querySelectorAll('.card h3')].find(x => x.textContent === 'Bodyweight'); h.closest('.card').scrollIntoView({ block: 'start' }); window.scrollBy(0, -12); });
+await page.waitForTimeout(400);
+await page.screenshot({ path: SHOTS + '18-fatloss-trend.png' });
+
+// Settings: voice toggles, bar weights, backup
+await page.click('.tabbar [data-tab=settings]');
+assert(await page.locator('text=Voice: “Rest over, next set”').count(), 'voice toggle');
+assert(await page.locator('text=Voice: “10 seconds” warning').count(), '10s warning toggle');
+assert(await page.locator('input[data-change=barWeight]').count() && await page.locator('input[data-change=trapBarWeight]').count(), 'bar weight inputs');
+await page.fill('input[data-change=barWeight]', '45');
+await page.fill('input[data-change=trapBarWeight]', '55');
+await page.locator('input[data-change=trapBarWeight]').press('Tab');
+assert((await page.evaluate(() => window.__rep.state.settings.trapBarWeight)) === 55, 'trap bar weight saved');
+await page.evaluate(() => { const h = [...document.querySelectorAll('.card h3')].find(x => x.textContent === 'Rest timer'); h.scrollIntoView({ block: 'start' }); window.scrollBy(0, -12); });
+await page.waitForTimeout(300);
+await page.screenshot({ path: SHOTS + '19-settings-voice-bars.png' });
+await page.evaluate(() => { const h = [...document.querySelectorAll('.card h3')].find(x => /Backup/.test(x.textContent)); h.scrollIntoView({ block: 'start' }); window.scrollBy(0, -12); });
+assert(await page.locator('[data-act=backupShare]').count(), 'Backup to Drive / Files button');
+assert(await page.locator('text=Last backed up').count(), 'last backed up label');
+await page.waitForTimeout(300);
+await page.screenshot({ path: SHOTS + '20-settings-backup.png' });
+// Mark backup done via download path
+const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('[data-act=backupShare]')]);
+await dl2.saveAs(SHOTS + '../.e2e-backup2.json');
+assert((await page.evaluate(() => !!window.__rep.state.settings.lastBackupAt)), 'lastBackupAt stamped after backup');
+
+// Plate calculator + swap during a fresh workout
+await page.click('.tabbar [data-tab=today]');
+// If done-card from earlier session, choose another workout
+if (await page.locator('[data-act=choose]').count()) {
+  await page.click('[data-act=choose]');
+  await page.click('.picker [data-act=pick][data-w=L2]');
+}
+await page.click('[data-act=precheck]');
+await page.click('[data-act=pq][data-k=ate][data-v="1"]');
+await page.click('[data-act=pq][data-k=water][data-v="1"]');
+await page.click('[data-act=pq][data-k=ok][data-v="1"]');
+await page.click('[data-act=start]');
+await page.waitForSelector('.safety');
+// Trap-bar deadlift is lift 1 on L2 — should show plates
+const plateTxt = await page.evaluate(() => {
+  const el = document.querySelector('.plates');
+  return el ? el.textContent : '';
+});
+assert(/Each side:/.test(plateTxt) || /Bar only/.test(plateTxt), 'plate breakdown shown on trap-bar set: ' + plateTxt);
+await page.evaluate(() => { document.querySelector('.plates')?.scrollIntoView({ block: 'center' }); window.scrollBy(0, -40); });
+await page.waitForTimeout(300);
+await page.screenshot({ path: SHOTS + '21-plate-calculator.png' });
+// Swap sheet
+await page.click('[data-act=swap][data-i="0"]');
+await page.waitForSelector('.panel >> text=LA Fitness swap');
+assert(await page.locator('.panel >> text=Make permanent in the plan').count(), 'permanent swap toggle');
+assert(await page.locator('.panel >> text=Same movement pattern').count(), 'same-pattern list');
+await page.waitForTimeout(300);
+await page.screenshot({ path: SHOTS + '22-exercise-swap.png' });
+await page.click('.panel [data-act=doSwap][data-ex=db_deadlift]');
+const swapped = await page.evaluate(() => window.__rep.state.active.exercises[0]);
+assert(swapped.exId === 'db_deadlift' && swapped.swappedFrom === 'trap_bar_deadlift', 'swap applied for today with from-id');
+assert(swapped.suggestion && swapped.suggestion.source, 'swap suggestion has source');
+await page.waitForTimeout(400);
+await page.screenshot({ path: SHOTS + '23-swap-applied.png' });
+await page.click('[data-act=discard]');
+// dialog auto-accepted by page.on('dialog')
+
+// Voice warn flag on timer
+await page.evaluate(() => {
+  window.__rep.state.timer = { end: Date.now() + 9500, total: 90, label: 'test', warned: false, fired: false };
+  window.__rep.render();
+});
+await page.waitForTimeout(1200);
+const warned = await page.evaluate(() => window.__rep.state.timer && window.__rep.state.timer.warned === true);
+assert(warned, '10-second voice warning flag set on timer');
+await page.evaluate(() => { window.__rep.state.timer = null; window.__rep.state.active = null; });
+
+log('ok - v1.5 features covered');
+
 // ---- offline: service worker serves app shell
 // reload once so the freshly-installed SW controls the page (fallback to goto if the reload stalls)
 try { await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 }); }

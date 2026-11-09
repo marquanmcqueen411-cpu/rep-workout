@@ -253,3 +253,15 @@ input[type=range]{height:44px;accent-color:var(--accent)}
 .seg.sm button{min-height:46px}
 .toggle input:checked+span{background:var(--accent-fill)}
 .ptable{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0} .ptable th{color:var(--muted);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:4px} .ptable td{padding:6px 4px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+
+/* plates / fat-loss / check-in / backup */
+.plates{grid-column:1/-1;font-size:12.5px;font-weight:700;color:#9ecbff;background:rgba(58,160,255,.1);border:1px solid rgba(58,160,255,.25);border-radius:10px;padding:6px 10px;margin:-2px 0 6px}
+.set+.plates{margin-top:0}
+.fatstats{margin:8px 0 4px}
+.banner.win{background:rgba(48,209,88,.12);border:1px solid rgba(48,209,88,.35);color:#c8f5d4}
+.okc{color:var(--ok)}
+.checkin-text{background:#0f0f12;border:1px solid var(--line);border-radius:14px;padding:12px;font:12.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;max-height:50vh;overflow:auto;color:#d6d6dc;margin:8px 0 12px}
+.card.checkin,.card.backup{border-color:rgba(255,77,26,.35)}
+.stats.four{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}
+.stats.four small{display:block;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.stats.four b{font-size:18px;font-weight:900}

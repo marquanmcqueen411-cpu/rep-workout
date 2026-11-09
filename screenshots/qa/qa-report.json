@@ -1,5 +1,5 @@
 {
-  "url": "http://localhost:5174/rep-workout/",
+  "url": "http://localhost:5173/",
   "viewports": {
     "phone": {
       "today": {
@@ -202,9 +202,9 @@
   },
   "installability": [],
   "manifestErrors": [],
-  "manifestUrl": "http://localhost:5174/rep-workout/manifest.json",
-  "swScope": "http://localhost:5174/rep-workout/",
+  "manifestUrl": "http://localhost:5173/manifest.json",
+  "swScope": "http://localhost:5173/",
   "cacheKeys": [
-    "rep-v1.4.0"
+    "rep-v1.5.0"
   ]
 }

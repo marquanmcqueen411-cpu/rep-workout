@@ -7,6 +7,11 @@ import { warmups, equipOf, EQUIP_LABEL, defaultIncrement, detectPRs, e1rm as epl
 import { bodySvg } from './body.js';
 import { lineChart, barChart } from './charts.js';
 import { parseRenpho, mergeBodyweight, leanMass } from './renpho.js';
+import { plateBreakdown, formatPlates, wantsPlates, barFor } from './plates.js';
+import { bwChartSeries, lossRate, projectGoal, muscleRiskFlag, movingAverage } from './fatloss.js';
+import { buildCheckIn } from './checkin.js';
+import { shareOrDownloadBackup, needsBackupReminder, formatLastBackup } from './backup.js';
+import { swapAlternatives, swapSuggestion } from './swap.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -39,6 +44,8 @@ function viewToday() {
     <h1>Today</h1><div class="chips"><span class="chip ${pw.deload ? 'warn' : ''}">Week ${pw.week} of ${pw.of}${pw.deload ? ' · DELOAD' : ''}</span><span class="chip">Cycle ${pw.cycle}</span><span class="chip">RIR 2</span></div></header>`;
   if (pw.deload) h += `<div class="banner deload"><b>Deload week.</b> ~60% volume: 2 sets per lift at ~90% weight. Recover, move well, keep protein high.</div>`;
   h += weighInCard();
+  h += checkInCard();
+  h += backupReminderCard();
   if (injectionStatus().status !== 'done') h += injectionCard(true);
 
   const doneToday = doneSessions().filter(s => s.date === ymd());
@@ -112,6 +119,24 @@ function weighInCard() {
     <button class="btn primary" data-act="weighIn">Save</button></div></section>`;
 }
 
+function checkInCard() {
+  const now = new Date();
+  // Monday card, or any day if opened from Progress — Today only auto-shows Monday
+  if (now.getDay() !== 1) return '';
+  const c = buildCheckIn(now);
+  return `<section class="card checkin"><div class="eyebrow accent">Coach Dre check-in</div>
+    <h3>Weekly summary ready</h3>
+    <p class="muted sm">${c.from} → ${c.to} · ${c.meta.sessions}/${c.meta.planned} sessions · avg ${c.meta.avgBw != null ? c.meta.avgBw.toFixed(1) + ' lb' : '—'} · protein ${c.meta.avgP != null ? Math.round(c.meta.avgP) + ' g' : '—'}</p>
+    <div class="quick"><button class="btn primary" data-act="checkIn">Open check-in</button><button class="btn" data-act="checkInCopy">Copy</button></div></section>`;
+}
+function backupReminderCard() {
+  const n = needsBackupReminder(state.settings.lastBackupAt);
+  if (!n.show) return '';
+  const why = n.reason === 'sunday' ? 'Sunday backup day' : n.reason === 'never' ? 'No backup yet' : `${n.days}+ days since last backup`;
+  return `<section class="card backup"><div class="eyebrow accent">Backup</div><h3>${why}</h3>
+    <p class="muted sm">Save a JSON copy to your phone or pick <b>Drive</b> in the share sheet. Last backed up: <b>${esc(formatLastBackup(state.settings.lastBackupAt))}</b>.</p>
+    <button class="btn primary wide" data-act="backupShare">Backup now</button></section>`;
+}
 function weekStrip() {
   const mon = mondayOf(new Date()); const days = trainingDays();
   let cells = '';
@@ -165,7 +190,13 @@ function warmRow(e, sets) {
 }
 function setRow(i, j, s, e) {
   const inc = incFor(e.exId); const tgt = e.suggestion.targets?.[j];
+  const ex = exercise(e.exId);
   const rir = s.done ? `<div class="rir" role="group" aria-label="Reps in reserve for set ${j + 1}"><span>Reps left?</span>${[0, 1, 2, 3].map(v => `<button class="${s.rir === v ? 'on' : ''} r${v}" data-act="rir" data-i="${i}" data-j="${j}" data-v="${v}" aria-label="${v === 3 ? '3 or more' : v} reps in reserve">${v === 3 ? '3+' : v}</button>`).join('')}</div>` : '';
+  let plates = '';
+  if (wantsPlates(ex) && s.weight !== '' && +s.weight > 0) {
+    const bd = plateBreakdown(+s.weight, barFor(ex, state.settings));
+    plates = `<div class="plates" aria-label="Plate breakdown">${esc(formatPlates(bd))}</div>`;
+  }
   return `<div class="set ${s.done ? 'done' : ''} ${s.pr && s.pr.length ? 'pr' : ''}">
     <div class="setn">${j + 1}${tgt != null && !s.done ? `<small>→${tgt}</small>` : ''}${s.pr && s.pr.length ? '<small class="prb">PR</small>' : ''}</div>
     <div class="stepper"><button data-act="step" data-i="${i}" data-j="${j}" data-f="weight" data-d="-${inc}" aria-label="Weight minus ${inc}">−</button>
@@ -174,7 +205,7 @@ function setRow(i, j, s, e) {
     <div class="stepper reps"><button data-act="step" data-i="${i}" data-j="${j}" data-f="reps" data-d="-1" aria-label="Reps minus 1">−</button>
       <input data-input="set" data-i="${i}" data-j="${j}" data-f="reps" type="number" inputmode="numeric" value="${s.reps}" placeholder="reps" aria-label="Set ${j + 1} reps">
       <button data-act="step" data-i="${i}" data-j="${j}" data-f="reps" data-d="1" aria-label="Reps plus 1">+</button></div>
-    <button class="check" data-act="toggleSet" data-i="${i}" data-j="${j}" aria-label="Complete set ${j + 1}">✓</button></div>${rir}`;
+    <button class="check" data-act="toggleSet" data-i="${i}" data-j="${j}" aria-label="Complete set ${j + 1}">✓</button></div>${plates}${rir}`;
 }
 const fmtSec = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 
@@ -182,16 +213,34 @@ const fmtSec = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart
 function viewProgress() {
   const st = streak();
   let h = `<header class="hero"><h1>Progress</h1></header>`;
-  h += `<section class="card streak"><div class="flame">🔥</div><div><div class="big">${st.weeks}-week streak</div><div class="muted">This week ${st.thisWeek}/${st.target} training days (lifts + classes)</div></div></section>`;
+  h += `<section class="card streak"><div class="flame">🔥</div><div><div class="big">${st.weeks}-week streak</div><div class="muted">This week ${st.thisWeek}/${st.target} training days (lifts + classes)</div></div></section>
+    <button class="btn wide" data-act="checkIn">📋 Weekly check-in for Coach Dre</button>`;
   h += `<section class="card"><div class="row between"><h3>Protein · last 7 days</h3><span class="chip">goal ${state.settings.targets.protein} g</span></div>${protein7(ymd())}</section>`;
-  // bodyweight
+  // bodyweight + smarter fat-loss
   const bw = [...state.bodyweight].sort((a, b) => a.date.localeCompare(b.date));
   const goal = state.settings.goalWeight;
   const first = bw[0], cur = bw[bw.length - 1];
+  const series = bwChartSeries(bw);
+  const rate = lossRate(bw);
+  const proj = projectGoal(bw, goal);
+  const drops = state.program.workouts.flatMap(w => w.exercises.map(x => x.ex))
+    .map(id => { const st = exStats(id); if (st.pts.length < 2) return null; const f = st.pts[0], l = st.pts[st.pts.length - 1]; return { id, name: exercise(id).name, dE: +((l.e1rm - f.e1rm) / f.e1rm * 100).toFixed(1) }; })
+    .filter(Boolean);
+  const risk = muscleRiskFlag(bw, { strengthDrops: drops });
+  let fatBits = '';
+  if (rate) {
+    fatBits += `<div class="stats four fatstats"><div><small>7-day avg</small><b>${rate.to.lb.toFixed(1)}</b></div>
+      <div><small>lb / wk</small><b class="${rate.losing ? 'accent' : 'okc'}">${rate.losing ? '−' : '+'}${Math.abs(rate.lbPerWeek).toFixed(1)}</b></div>
+      <div><small>% BW / wk</small><b class="${rate.pctPerWeek >= 1.5 ? 'accent' : ''}">${rate.losing ? '−' : '+'}${Math.abs(rate.pctPerWeek).toFixed(2)}%</b></div>
+      <div><small>@ 200</small><b>${proj ? (proj.arrived ? 'There' : proj.date.slice(5)) : '—'}</b></div></div>`;
+    if (proj && !proj.arrived) fatBits += `<p class="muted sm">At ~${Math.abs(rate.lbPerWeek).toFixed(1)} lb/wk, ~${proj.days} days to ${goal} lb (around <b>${proj.date}</b>). Trend uses your 7-day average — daily scale noise is ignored.</p>`;
+  }
+  if (risk) fatBits += `<div class="banner warn"><b>Gentle flag.</b> ${esc(risk.message)}</div>`;
   h += `<section class="card"><div class="row between"><h3>Bodyweight</h3><span class="chip">Goal ${goal} lb</span></div>
     <div class="stats"><div><small>Start</small><b>${first ? first.lb : '—'}</b></div><div><small>Current</small><b>${cur ? cur.lb : '—'}</b></div>
     <div><small>Lost</small><b class="accent">${first && cur ? (first.lb - cur.lb).toFixed(1) : '0'}</b></div><div><small>To go</small><b>${cur ? Math.max(0, cur.lb - goal).toFixed(1) : '—'}</b></div></div>
-    ${lineChart(bw.map(b => ({ x: parseYmd(b.date).getTime(), y: +b.lb })), { goal, unit: ' lb', label: 'Bodyweight' })}
+    ${fatBits}
+    ${lineChart(series.raw, { goal, unit: ' lb', label: 'Bodyweight', overlay: series.ma, overlayColor: '#3aa0ff', overlayLabel: '7-day avg' })}
     <div class="row bwrow"><input id="bwDate" class="inp" type="date" aria-label="Weigh-in date" value="${ymd()}"><input id="bwVal" class="inp" aria-label="Weight in lb" type="number" inputmode="decimal" step="0.1" placeholder="lb"><button class="btn primary" data-act="addBw">Add</button></div>
     <ul class="mini">${bw.slice(-6).reverse().map(b => `<li><span>${b.date}${b.source === 'renpho' ? ' <span class="chip sm">Renpho</span>' : ''}</span><b>${b.lb} lb${b.bf != null ? ` · ${b.bf}%` : ''}</b><button class="link" data-act="delBw" data-d="${b.date}" aria-label="Delete ${b.date}">✕</button></li>`).join('')}</ul>
     <button class="btn ghost wide" data-act="renphoPick">⇪ Import from Renpho (CSV)</button></section>`;
@@ -432,7 +481,13 @@ function viewSettings() {
     <div class="frow"><label>Other lifts <b>${fmtSec(s.rest.other)}</b></label><input type="range" min="45" max="180" step="15" data-change="restOther" aria-label="Other lifts rest seconds" value="${s.rest.other}"></div>
     <label class="toggle"><input type="checkbox" data-change="sound" ${s.sound ? 'checked' : ''}><span></span>Sound at end</label>
     <label class="toggle"><input type="checkbox" data-change="vibrate" ${s.vibrate ? 'checked' : ''}><span></span>Vibrate at end</label>
+    <label class="toggle"><input type="checkbox" data-change="voice" ${s.voice !== false ? 'checked' : ''}><span></span>Voice: “Rest over, next set”</label>
+    <label class="toggle"><input type="checkbox" data-change="voiceWarn" ${s.voiceWarn !== false ? 'checked' : ''}><span></span>Voice: “10 seconds” warning</label>
+    <p class="muted sm">Keeps the screen awake during a workout so the timer can speak and vibrate.</p>
     <button class="btn ghost sm" data-act="testAlarm">Test alarm</button></section>`;
+  h += `<section class="card"><h3>Barbell / trap bar</h3><p class="muted sm">Used by the plate calculator on barbell lifts (LA Fitness plates: 45 / 35 / 25 / 10 / 5 / 2.5).</p>
+    <div class="frow"><label>Olympic bar</label><input class="inp num" type="number" inputmode="decimal" step="any" data-change="barWeight" aria-label="Olympic bar weight" value="${s.barWeight ?? 45}"><span class="unit">lb</span></div>
+    <div class="frow"><label>Trap / hex bar</label><input class="inp num" type="number" inputmode="decimal" step="any" data-change="trapBarWeight" aria-label="Trap bar weight" value="${s.trapBarWeight ?? 45}"><span class="unit">lb</span></div></section>`;
   const tf = [['kcal', 'Calories (kcal)'], ['protein', 'Protein (g)'], ['fat', 'Fat (g)'], ['carbs', 'Carbs (g)'], ['steps', 'Steps goal'], ['stepsMin', 'Steps-day min'], ['stepsMax', 'Steps-day max'], ['waterOz', 'Water (oz)']];
   h += `<section class="card"><h3>Daily targets</h3>${tf.map(([k, l]) => `<div class="frow"><label>${l}</label><input class="inp num" type="number" inputmode="numeric" data-change="target" data-k="${k}" aria-label="${l}" value="${t[k]}"></div>`).join('')}
     <div class="frow"><label>Goal bodyweight (lb)</label><input class="inp num" type="number" data-change="goalWeight" aria-label="Goal bodyweight" value="${s.goalWeight}"></div></section>`;
@@ -465,13 +520,16 @@ function viewSettings() {
     <div class="frow"><label>Dose label (optional)</label><input class="inp num wide2" data-change="injDose" aria-label="Dose label" value="${esc(s.injectionDose)}" placeholder="e.g. 5 mg"></div></section>`;
   h += `<section class="card"><h3>Import from Renpho</h3><p class="muted sm">In the Renpho app, use its data export option and save the CSV, then choose it here. Weight (lb or kg), body fat % and muscle mass are detected automatically; you'll see a preview before anything is saved.</p>
     <button class="btn wide" data-act="renphoPick">⇪ Choose Renpho CSV</button></section>`;
-  h += `<section class="card"><h3>Data</h3><p class="muted sm">Everything is stored only on this phone. Export a backup regularly.</p>
-    <div class="quick"><button class="btn primary" data-act="export">Export JSON</button><button class="btn" data-act="import">Import JSON</button></div>
+  h += `<section class="card"><h3>Backup &amp; data</h3>
+    <p class="muted sm">Everything is stored only on this phone. Last backed up: <b>${esc(formatLastBackup(s.lastBackupAt))}</b>.</p>
+    <button class="btn primary wide" data-act="backupShare">Backup to Drive / Files</button>
+    <p class="muted sm">Opens your phone’s share sheet — pick <b>Drive</b> (or Files) to save the JSON. Falls back to a download if sharing isn’t available.</p>
+    <div class="quick"><button class="btn" data-act="export">Download JSON</button><button class="btn" data-act="import">Import JSON</button></div>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
     <button class="btn danger wide" data-act="resetAll">Erase all data</button>
     <p class="muted sm">${doneSessions().length} sessions · ${state.bodyweight.length} weigh-ins · ${state.dizzyEvents.length} dizziness events · ${state.injections.length} injections · ${state.supplements.length} supplements</p></section>`;
   h += `<section class="card"><h3>Safety</h3><p class="muted sm">Don't lift fasted. Eat carbs + protein 1–2 h before, drink water/electrolytes. If dizzy or lightheaded: stop, sit or lie down, sip fluids, have some fast carbs. Fainting, chest pain, or confusion → call 911. Tell your prescriber about repeated dizziness.</p>
-    <p class="muted sm">Rep v1 · personal use</p></section>`;
+    <p class="muted sm">Rep v1.5 · personal use</p></section>`;
   return h;
 }
 
@@ -498,12 +556,16 @@ function infoSheet(id) {
 
 function swapSheet(i) {
   const a = state.active; const cur = visible(a)[i].e;
-  const alts = alternatives(cur.exId); const rest = EXERCISES.filter(e => e.id !== cur.exId && !alts.includes(e));
-  const item = e => `<li data-act="doSwap" data-i="${i}" data-ex="${e.id}"><b>${esc(e.name)}</b><small>${esc(e.equipment)}</small></li>`;
-  sheet(`<h2>Swap ${esc(exercise(cur.exId).name)}</h2>
-    <label class="toggle"><input type="checkbox" id="swapSave"><span></span>Also save to program</label>
-    <h3>Same movement</h3><ul class="picker">${alts.map(item).join('') || '<li class="muted">None</li>'}</ul>
-    <details><summary>All exercises</summary><ul class="picker">${rest.map(item).join('')}</ul></details>
+  const { same, rest } = swapAlternatives(cur.exId);
+  const item = e => {
+    const hasHist = historyFor(e.id).length > 0;
+    return `<li data-act="doSwap" data-i="${i}" data-ex="${e.id}"><b>${esc(e.name)}</b><small>${esc(e.equipment)}${hasHist ? ' · has history' : ' · converts from current'}</small></li>`;
+  };
+  sheet(`<div class="eyebrow accent">LA Fitness swap</div><h2>Swap ${esc(exercise(cur.exId).name)}</h2>
+    <p class="muted sm">Today only by default. Progression carries over: the swap keeps its own history if you have one; otherwise we suggest a conservative starting weight from this lift.</p>
+    <label class="toggle"><input type="checkbox" id="swapSave"><span></span>Make permanent in the plan</label>
+    <h3>Same movement pattern</h3><ul class="picker">${same.map(item).join('') || '<li class="muted">None</li>'}</ul>
+    <details><summary>All LA Fitness exercises</summary><ul class="picker">${rest.map(item).join('')}</ul></details>
     <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
 }
 
@@ -615,6 +677,16 @@ function exHistSheet(exId) {
     <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
 }
 
+function checkInSheet() {
+  const c = buildCheckIn(new Date());
+  sheet(`<div class="eyebrow accent">Coach Dre</div><h2>Weekly check-in</h2>
+    <p class="muted sm">${c.from} → ${c.to}</p>
+    <pre class="checkin-text" id="checkInText">${esc(c.text)}</pre>
+    <div class="quick"><button class="btn primary" data-act="checkInCopy">Copy</button><button class="btn" data-act="checkInShare">Share</button></div>
+    <p class="muted sm">Paste this into a text to Coach Dre. Numbers come from your last week of logs.</p>
+    <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+}
+
 const actions = {
   go: el => go(el.dataset.tab),
   closeSheet: () => closeSheet(),
@@ -654,11 +726,19 @@ const actions = {
   swap: el => swapSheet(+el.dataset.i),
   doSwap: el => {
     const i = +el.dataset.i; const a = state.active; const entry = visible(a)[i].e; const idx = a.exercises.indexOf(entry);
+    const fromId = entry.exId; const toId = el.dataset.ex;
     const saveProg = $('#swapSave')?.checked;
-    const w = workoutById(a.workoutId); const slot = { ...(w?.exercises[idx] || { sets: 3, reps: entry.reps }), ex: el.dataset.ex };
-    a.exercises[idx] = buildEx(slot, a.deload);
-    if (saveProg && w) w.exercises[idx].ex = el.dataset.ex;
-    save(); closeSheet(); render(); toast(saveProg ? 'Swapped & saved to program' : 'Swapped for today');
+    const w = workoutById(a.workoutId);
+    const base = w?.exercises[idx] || { sets: entry.sets?.length || 3, reps: entry.reps };
+    const slot = { sets: base.sets || 3, reps: base.reps || entry.reps, note: base.note || entry.note || '', ex: toId };
+    const sg = swapSuggestion(fromId, toId, slot, { deload: a.deload, badDay: a.badDay });
+    a.exercises[idx] = {
+      exId: toId, reps: slot.reps, note: slot.note || '', suggestion: sg, swappedFrom: fromId,
+      sets: Array.from({ length: sg.sets }, (_, j) => ({ weight: sg.weights[j] ?? '', reps: sg.targets[j] ?? '', done: false, rir: null })),
+    };
+    if (saveProg && w) w.exercises[idx].ex = toId;
+    save(); closeSheet(); render();
+    toast(saveProg ? `Permanent swap → ${exercise(toId).name}` : `Today: ${exercise(toId).name}`);
   },
   finish: () => finishSession('done'),
   discard: () => { if (confirm('Discard this workout? Logged sets will be lost.')) { state.active = null; stopTimer(); save(); wake(false); render(); } },
@@ -736,10 +816,31 @@ const actions = {
   newCycle: () => { state.settings.cycleStart = ymd(mondayOf(new Date())); save(); render(); toast('Week 1 starts this week'); },
   testAlarm: () => alarm(),
   resetProgram: () => { if (confirm('Reset program to Coach Dre default? Your logs are kept.')) { resetProgram(); render(); } },
-  export: () => {
-    const blob = new Blob([JSON.stringify({ app: 'rep-workout', exportedAt: new Date().toISOString(), data: state }, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `rep-backup-${ymd()}.json`; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast('Backup downloaded');
+  backupShare: async () => {
+    const r = await shareOrDownloadBackup(state);
+    if (r === 'aborted') return toast('Backup cancelled');
+    state.settings.lastBackupAt = new Date().toISOString(); save(); render();
+    toast(r === 'shared' ? 'Shared — pick Drive in the sheet' : 'Backup downloaded');
+  },
+  checkIn: () => checkInSheet(),
+  checkInCopy: async () => {
+    const c = buildCheckIn(new Date());
+    try { await navigator.clipboard.writeText(c.text); toast('Copied — paste to Coach Dre'); }
+    catch { checkInSheet(); toast('Open check-in to copy'); }
+  },
+  checkInShare: async () => {
+    const c = buildCheckIn(new Date());
+    if (navigator.share) {
+      try { await navigator.share({ title: 'Rep weekly check-in', text: c.text }); toast('Shared'); return; }
+      catch (err) { if (err && err.name === 'AbortError') return; }
+    }
+    try { await navigator.clipboard.writeText(c.text); toast('Copied — paste to Coach Dre'); } catch { toast('Copy failed'); }
+  },
+  export: async () => {
+    const r = await shareOrDownloadBackup(state);
+    if (r === 'aborted') return;
+    state.settings.lastBackupAt = new Date().toISOString(); save(); render();
+    toast(r === 'shared' ? 'Shared — pick Drive in the sheet' : 'Backup downloaded');
   },
   import: () => $('#importFile').click(),
   renphoPick: () => $('#renphoFile').click(),
@@ -795,6 +896,10 @@ const changes = {
   restOther: el => { state.settings.rest.other = +el.value; save(); render(); },
   sound: el => { state.settings.sound = el.checked; save(); },
   vibrate: el => { state.settings.vibrate = el.checked; save(); },
+  voice: el => { state.settings.voice = el.checked; save(); },
+  voiceWarn: el => { state.settings.voiceWarn = el.checked; save(); },
+  barWeight: el => { state.settings.barWeight = Math.max(0, +el.value || 45); save(); toast('Bar weight saved'); },
+  trapBarWeight: el => { state.settings.trapBarWeight = Math.max(0, +el.value || 45); save(); toast('Trap bar weight saved'); },
   target: el => { state.settings.targets[el.dataset.k] = Math.max(0, +el.value || 0); save(); toast('Saved'); },
   goalWeight: el => { state.settings.goalWeight = +el.value || 200; save(); },
   wname: el => { state.program.workouts[+el.dataset.w].name = el.value; save(); },
@@ -808,11 +913,21 @@ const changes = {
 let actx = null;
 function unlockAudio() { try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) { } }
 function beep(t0, f, dur) { const o = actx.createOscillator(), g = actx.createGain(); o.type = 'square'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(g).connect(actx.destination); o.start(t0); o.stop(t0 + dur + 0.02); }
+function speak(text) {
+  try {
+    if (!('speechSynthesis' in window)) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1; u.pitch = 1; u.volume = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  } catch (e) { }
+}
 function alarm() {
   if (state.settings.vibrate && navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 400]);
   if (state.settings.sound) { unlockAudio(); if (actx) { const t = actx.currentTime; beep(t, 880, 0.18); beep(t + 0.25, 880, 0.18); beep(t + 0.5, 1320, 0.4); } }
+  if (state.settings.voice !== false) speak('Rest over, next set');
 }
-function startTimer(sec, label) { state.timer = { end: Date.now() + sec * 1000, total: sec, label }; save(); renderTimer(); }
+function startTimer(sec, label) { state.timer = { end: Date.now() + sec * 1000, total: sec, label, warned: false, fired: false }; save(); renderTimer(); }
 function stopTimer() { state.timer = null; save(); renderTimer(); }
 function renderTimer() {
   const el = $('#timer'); const t = state.timer;
@@ -829,8 +944,16 @@ function renderTimer() {
 }
 function tick() {
   const t = state.timer;
-  if (t && !t.fired && Date.now() >= t.end) { t.fired = true; save(); alarm(); setTimeout(() => { if (state.timer && state.timer.fired) stopTimer(); }, 4000); }
-  if (t) renderTimer();
+  if (t) {
+    const left = Math.ceil((t.end - Date.now()) / 1000);
+    if (!t.warned && left > 0 && left <= 10 && state.settings.voiceWarn !== false) {
+      t.warned = true; save();
+      speak('10 seconds');
+      if (state.settings.vibrate && navigator.vibrate) navigator.vibrate([80, 60, 80]);
+    }
+    if (!t.fired && Date.now() >= t.end) { t.fired = true; save(); alarm(); setTimeout(() => { if (state.timer && state.timer.fired) stopTimer(); }, 4000); }
+    renderTimer();
+  }
   const e = $('#elapsed'); if (e && state.active) e.textContent = fmtSec((Date.now() - new Date(state.active.start)) / 1000);
 }
 let wl = null;
@@ -889,4 +1012,9 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // test hook (used by scripts/e2e.mjs)
-window.__rep = { get state() { return state; }, render, injectionStatus, suppAdherence, injLine };
+window.__rep = {
+  get state() { return state; }, render, injectionStatus, suppAdherence, injLine,
+  buildCheckIn, plateBreakdown, formatPlates, wantsPlates, barFor,
+  lossRate, projectGoal, muscleRiskFlag, movingAverage, needsBackupReminder,
+  swapSuggestion, shareOrDownloadBackup,
+};

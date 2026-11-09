@@ -34,6 +34,11 @@ function defaults() {
       injectionWindowDays: 2,
       injectionDose: '',
       increments: {},        // per-exercise weight step overrides (lb)
+      voice: true,           // speak "Rest over, next set" when timer ends
+      voiceWarn: true,       // speak "10 seconds" with 10 s left
+      barWeight: 45,         // Olympic barbell (lb)
+      trapBarWeight: 45,     // trap/hex bar (lb)
+      lastBackupAt: null,    // ISO timestamp of last successful backup share/download
     },
     supplements: clone(DEFAULT_SUPPLEMENTS),
     quickFoods: clone(DEFAULT_QUICK_FOODS),
