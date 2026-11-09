@@ -9,13 +9,14 @@ export function lineChart(points, { goal = null, unit = '', height = 190, color 
   let x0 = Math.min(...xs), x1 = Math.max(...xs);
   if (x0 === x1) { x0 -= 86400000 * 3; x1 += 86400000 * 3; }
   let y0 = Math.min(...ys), y1 = Math.max(...ys);
-  const pad = Math.max((y1 - y0) * yPad, 2); y0 -= pad; y1 += pad;
+  const span = y1 - y0; const pad = span ? span * Math.max(yPad, 0.15) : Math.max(Math.abs(y1) * 0.05, 0.01); y0 -= pad; y1 += pad;
+  const dec = y1 - y0 < 0.5 ? 3 : y1 - y0 < 5 ? 2 : y1 - y0 < 20 ? 1 : 0;
   const sx = x => L + ((x - x0) / (x1 - x0)) * (W - L - R);
   const sy = y => T + (1 - (y - y0) / (y1 - y0)) * (H - T - B);
   const ticks = 4; let grid = '';
   for (let i = 0; i <= ticks; i++) {
     const v = y0 + ((y1 - y0) * i) / ticks, y = sy(v);
-    grid += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="#26262c"/><text x="${L - 6}" y="${y + 4}" text-anchor="end" font-size="10" fill="#8e8e96">${Math.round(v)}</text>`;
+    grid += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="#26262c"/><text x="${L - 6}" y="${y + 4}" text-anchor="end" font-size="10" fill="#8e8e96">${dec ? v.toFixed(dec) : Math.round(v)}</text>`;
   }
   const d = points.map((p, i) => `${i ? 'L' : 'M'}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join(' ');
   const area = `${d} L${sx(points[points.length - 1].x)},${H - B} L${sx(points[0].x)},${H - B} Z`;

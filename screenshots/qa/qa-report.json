@@ -1,0 +1,210 @@
+{
+  "url": "http://localhost:5174/rep-workout/",
+  "viewports": {
+    "phone": {
+      "today": {
+        "overflow": false,
+        "scrollWidth": 412,
+        "small": [],
+        "axe": []
+      },
+      "progress": {
+        "overflow": false,
+        "scrollWidth": 412,
+        "small": [],
+        "axe": []
+      },
+      "recovery": {
+        "overflow": false,
+        "scrollWidth": 412,
+        "small": [],
+        "axe": []
+      },
+      "daily": {
+        "overflow": false,
+        "scrollWidth": 412,
+        "small": [],
+        "axe": []
+      },
+      "settings": {
+        "overflow": false,
+        "scrollWidth": 412,
+        "small": [],
+        "axe": []
+      },
+      "sheetInfo": {
+        "overflow": false,
+        "scrollWidth": 412,
+        "small": [],
+        "axe": []
+      },
+      "sheetChoose": {
+        "overflow": false,
+        "scrollWidth": 412,
+        "small": [],
+        "axe": []
+      },
+      "sheetPrecheck": {
+        "overflow": false,
+        "scrollWidth": 412,
+        "small": [],
+        "axe": []
+      },
+      "workout": {
+        "overflow": false,
+        "scrollWidth": 416,
+        "small": [],
+        "axe": []
+      },
+      "sheetHistory": {
+        "overflow": false,
+        "scrollWidth": 416,
+        "small": [],
+        "axe": []
+      },
+      "sheetSwap": {
+        "overflow": false,
+        "scrollWidth": 416,
+        "small": [],
+        "axe": []
+      },
+      "sheetDizzy": {
+        "overflow": false,
+        "scrollWidth": 416,
+        "small": [],
+        "axe": []
+      },
+      "sheetSummary": {
+        "overflow": false,
+        "scrollWidth": 412,
+        "small": [],
+        "axe": []
+      },
+      "sheetRenpho": {
+        "overflow": false,
+        "scrollWidth": 412,
+        "small": [],
+        "axe": []
+      },
+      "progressBodyComp": {
+        "overflow": false,
+        "scrollWidth": 412,
+        "small": [],
+        "axe": []
+      },
+      "sheetShake": {
+        "overflow": false,
+        "scrollWidth": 412,
+        "small": [],
+        "axe": []
+      },
+      "consoleErrors": []
+    },
+    "tablet": {
+      "today": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "progress": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "recovery": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "daily": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "settings": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "sheetInfo": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "sheetChoose": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "sheetPrecheck": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "workout": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "sheetHistory": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "sheetSwap": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "sheetDizzy": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "sheetSummary": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "sheetRenpho": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "progressBodyComp": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "sheetShake": {
+        "overflow": false,
+        "scrollWidth": 800,
+        "small": [],
+        "axe": []
+      },
+      "consoleErrors": []
+    }
+  },
+  "installability": [],
+  "manifestErrors": [],
+  "manifestUrl": "http://localhost:5174/rep-workout/manifest.json",
+  "swScope": "http://localhost:5174/rep-workout/",
+  "cacheKeys": [
+    "rep-v1.4.0"
+  ]
+}

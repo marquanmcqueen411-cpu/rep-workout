@@ -33,6 +33,7 @@ function defaults() {
       injectionDay: 6,       // tirzepatide: Saturday (window Sat–Sun, overdue after)
       injectionWindowDays: 2,
       injectionDose: '',
+      increments: {},        // per-exercise weight step overrides (lb)
     },
     supplements: clone(DEFAULT_SUPPLEMENTS),
     quickFoods: clone(DEFAULT_QUICK_FOODS),
@@ -52,6 +53,7 @@ function migrate(s) {
   out.settings = { ...d.settings, ...(s.settings || {}) };
   out.settings.targets = { ...d.settings.targets, ...((s.settings || {}).targets || {}) };
   out.settings.rest = { ...d.settings.rest, ...((s.settings || {}).rest || {}) };
+  if (!out.settings.increments || typeof out.settings.increments !== 'object') out.settings.increments = {};
   if (!Array.isArray(out.settings.schedule) || out.settings.schedule.length !== 7) out.settings.schedule = d.settings.schedule;
   for (const k of ['sessions', 'bodyweight', 'dizzyEvents', 'supplements', 'quickFoods', 'injections']) if (!Array.isArray(out[k])) out[k] = d[k];
   if (!out.program || !Array.isArray(out.program.workouts)) out.program = d.program;
@@ -63,16 +65,16 @@ function migrate(s) {
 
 function load() {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null;
     if (raw) return migrate(JSON.parse(raw));
   } catch (e) { console.warn('load failed', e); }
   return defaults();
 }
 
 export let state = load();
-export function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+export function save() { if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(state)); }
 export function replaceState(obj) { state = migrate(obj); save(); }
-export function resetAll() { localStorage.removeItem(KEY); state = defaults(); save(); }
+export function resetAll() { if (typeof localStorage !== 'undefined') localStorage.removeItem(KEY); state = defaults(); save(); }
 export function resetProgram() { state.program = clone(PROGRAM); save(); }
 
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);

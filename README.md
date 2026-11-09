@@ -20,7 +20,9 @@ In-app edits (Settings → Schedule / Program / Targets) are stored on the devic
 - **Today**: scheduled workout (Mon U1 / Wed L1 / Fri U2 / Sat L2; Tue/Thu/Sun steps days), choose any workout (shows next in rotation), program week (week 6 = deload banner), Bad-day mode (first 2 lifts × 2 sets), class / other-training logging, Monday weigh-in prompt, weekly strip + streak.
 - **Pre-workout safety check** (ate carbs+protein 1–2 h ago? electrolytes/water? feeling OK?) with a clear don't-lift-fasted warning; persistent "Dizzy or lightheaded? Stop, sit down, sip fluids." bar and **I feel dizzy** button that logs the event, pauses, and shows guidance (end & save or resume).
 - **Set logging**: big ± steppers, tap-to-type, check-off. First session: empty fields. After that: prefilled with the suggestion and "Last: …" chip. RIR 2 cue everywhere.
-- **Progression**: all sets at top of range → +5 lb upper / +10 lb lower; otherwise same weight, +1 rep target. Deload week: 2 sets at ~90%.
+- **Progressive overload engine** (`src/progression.js`, unit-tested): per-set double progression (each set gets its own "→ target"); all sets at top of range → jump (+5 lb upper / +10 lb lower; dumbbells step per hand, machines to the next stack step; per-exercise steps editable in Settings → Weight steps). RIR chips (0/1/2/3+) per set: all-top at RIR 0 → hold and own it, all-top at RIR ≥3 → double jump. Missed the bottom of the range twice → −5–10%; stall (3 sessions same weight, no rep gain) → reset −10% and a "Swap variation" button. Week 6 deload = 2 sets at ~90%, then "Back from deload → return to W". Bad-day and deload sessions never drive progression. Warm-up ramp on lift 1, first-session guidance, one-line explanation per lift ("Hit 8,8,8 at 185 last time → 190 today (+5 lb)").
+- **PRs & history**: e1RM / top-set / rep PRs detected live (badge on the set + celebration), per-exercise history sheet with e1RM / top set / × BW chart, trend vs bodyweight and next-time suggestion. Relative strength (e1RM ÷ bodyweight) on Progress.
+- **Import from Renpho** (Settings, or the shortcut on the Progress bodyweight card): in the Renpho app, use its data export option and save the CSV, then choose it here. Tolerant parser (comma/semicolon/tab, quoted fields, decimal commas; ISO, M/D/Y, D/M/Y, "Oct 23, 2026" dates, with times) auto-detects date, weight (kg → lb), body fat % and muscle mass columns. Preview (days, date range, unit with kg/lb override, columns, sample rows) before anything is saved; one reading per day (earliest); existing manual weigh-ins are kept unless you pick "Use Renpho". Body-composition card on Progress (body fat %, lean mass, fat mass, lean-mass trend, % of loss from lean). Included in Export/Import.
 - **Rest timer**: auto-starts after each set (lift 1: 150 s, adjustable 2–3 min; others 90 s), ±15 s, skip, vibration + beep, survives reload.
 - **Recovery map**: front/back SVG body, colored by hours since each muscle was trained (72 h compounds, 48 h isolation/secondary) + readiness of the next workout.
 - **Progress**: bodyweight chart with goal line (seeded 255 lb on 2026-10-23, goal 200), est. 1RM (Epley) / top-set chart per exercise, calendar (lifts, classes, dizzy days), session history.
@@ -38,15 +40,20 @@ icons/            icon.svg, icon-192.png, icon-512.png, maskable-512.png
 src/program.js    ← Coach Dre's program, schedule, targets, rules (edit me)
 src/exercises.js  exercise library: equipment, muscles, cues, demo links, swap groups
 src/store.js      localStorage state, dates, migrations
-src/logic.js      progression, program week/deload, rotation, recovery, streak
+src/progression.js pure overload engine (targets, jumps, stalls, deloads, PRs, warm-ups, rel. strength)
+src/renpho.js     Renpho CSV parser + bodyweight merge
+src/logic.js      engine glue, program week/deload, rotation, recovery, streak
 src/body.js       front/back body SVG
 src/charts.js     tiny SVG line chart
 src/app.js        UI (views, actions, timer, safety flows)
-scripts/          build.mjs, e2e.mjs
+tests/            node --test unit tests (+ fixtures/renpho-*.csv)
+scripts/          build.mjs, e2e.mjs, qa.mjs (axe, tap targets, installability), sample-data.mjs
+.github/workflows/deploy-pages.yml  GitHub Pages deploy (runs tests first)
 screenshots/      e2e screenshots (sample data)
 ```
 
 ## Notes / limits
 - Demos link out to a YouTube search for the exercise (no hotlinked/copyrighted media); each exercise sheet also shows a highlighted muscle diagram + text cues.
+- Renpho: if a CSV has no unit in the header, kg vs lb is guessed from the values (median < 150 → kg); the preview lets you flip it. Body fat % from a scale is an estimate.
 - Data lives in this browser only — clearing site data or uninstalling deletes it. Export backups.
 - Not medical advice. Repeated dizziness → tell the prescriber; fainting/chest pain → 911.

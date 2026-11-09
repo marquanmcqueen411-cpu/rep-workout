@@ -1,6 +1,7 @@
 import { state, ymd, parseYmd, mondayOf, addDays } from './store.js';
 import { exercise } from './exercises.js';
 import { PROGRESSION } from './program.js';
+import { suggestNext, defaultIncrement, e1rm, weekOf, bwOn, relStrength } from './progression.js';
 
 export const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const WD_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -14,16 +15,9 @@ export function round(w) {
   return Math.round(w / step) * step;
 }
 
-// ---- Program week / deload
+// ---- Program week / deload (DST-safe)
 export function programWeek(date = new Date()) {
-  const start = parseYmd(state.settings.cycleStart);
-  const days = Math.floor((mondayOf(date) - mondayOf(start)) / 86400000);
-  const wk = Math.floor(days / 7);
-  const n = state.program.cycleWeeks || 6;
-  const week = ((wk % n) + n) % n + 1;
-  const cycle = Math.floor(wk / n) + 1;
-  const deload = state.settings.deloadEnabled && week === (state.program.deloadWeek || 6);
-  return { week, cycle, deload, of: n };
+  return weekOf(state.settings.cycleStart, date, state.program.cycleWeeks || 6, state.program.deloadWeek || 6, state.settings.deloadEnabled);
 }
 
 // ---- Rotation / schedule
@@ -46,40 +40,29 @@ export function historyFor(exId) {
   return out.sort((a, b) => b.session.start.localeCompare(a.session.start));
 }
 
-export const e1rm = (w, r) => (w > 0 && r > 0 ? w * (1 + r / 30) : 0); // Epley
-
+export { e1rm };
+export function incFor(exId) { const v = state.settings.increments && state.settings.increments[exId]; return v > 0 ? +v : defaultIncrement(exercise(exId)); }
+/** Engine history for an exercise, newest first. */
+export function engineHistory(exId) {
+  return historyFor(exId).map(h => ({ date: h.session.date, start: h.session.start, deload: !!h.session.deload, badDay: !!h.session.badDay, sets: h.ex.sets }));
+}
 /** Suggest weight/reps for a program slot. */
-export function suggest(slot, { deload = false } = {}) {
-  const ex = exercise(slot.ex);
-  const [lo, hi] = slot.reps;
-  const hist = historyFor(slot.ex);
-  const last = hist.find(h => !h.session.deload) || hist[0];
-  const inc = ex.region === 'lower' ? PROGRESSION.lowerIncrementLb : PROGRESSION.upperIncrementLb;
-  const sets = deload ? Math.min(PROGRESSION.deloadSets, slot.sets) : slot.sets;
-  if (!last) {
-    return { first: true, weight: null, reps: Array(sets).fill(null), sets,
-      text: `First session — pick a weight you can do for ${lo}–${hi} reps with 2 left in the tank.` };
-  }
-  const ls = last.ex.sets;
-  const lastW = Math.max(...ls.map(s => +s.weight || 0));
-  const lastStr = `${fmtW(lastW)} × ${ls.map(s => s.reps).join(', ')}`;
-  if (deload) {
-    const w = round(lastW * PROGRESSION.deloadWeightPct);
-    return { weight: w, reps: Array(sets).fill(lo), sets, last: lastStr,
-      text: `Deload: ${sets} sets @ ~${Math.round(PROGRESSION.deloadWeightPct * 100)}% (${fmtW(w)}) × ${lo}. Easy, crisp reps.` };
-  }
-  const allTop = ls.length >= slot.sets && ls.every(s => +s.reps >= hi);
-  if (allTop) {
-    const w = lastW + inc;
-    return { weight: w, reps: Array(sets).fill(lo), sets, last: lastStr, up: true,
-      text: `Hit ${hi} on all sets → add ${inc} lb: ${fmtW(w)} × ${lo}–${hi}.` };
-  }
-  const reps = Array.from({ length: sets }, (_, i) => {
-    const r = ls[i] ? +ls[i].reps : (ls[ls.length - 1] ? +ls[ls.length - 1].reps : lo);
-    return Math.max(lo, Math.min(hi, r + 1));
+export function suggest(slot, { deload = false, badDay = false } = {}) {
+  return suggestNext(slot, exercise(slot.ex), engineHistory(slot.ex), { inc: incFor(slot.ex), deload, badDay });
+}
+/** All prior working sets for PR detection. */
+export function priorSets(exId) { return historyFor(exId).flatMap(h => h.ex.sets); }
+export function exStats(exId) {
+  const hist = historyFor(exId).slice().reverse();
+  let bestE = 0, heaviest = 0, bestSet = null;
+  const pts = hist.map(h => {
+    const e = Math.max(...h.ex.sets.map(s => e1rm(+s.weight, +s.reps)));
+    const top = Math.max(...h.ex.sets.map(s => +s.weight || 0));
+    for (const s of h.ex.sets) { const v = e1rm(+s.weight, +s.reps); if (v > bestE) { bestE = v; bestSet = s; } if (+s.weight > heaviest) heaviest = +s.weight; }
+    const bw = bwOn(state.bodyweight, h.session.date);
+    return { t: new Date(h.session.start).getTime(), date: h.session.date, e1rm: e, top, bw, rel: relStrength(e, bw), session: h.session, ex: h.ex };
   });
-  return { weight: lastW, reps, sets, last: lastStr,
-    text: `Same weight (${fmtW(lastW)}), aim for +1 rep per set (target ${reps.join('/')}).` };
+  return { pts, bestE, heaviest, bestSet };
 }
 
 export const fmtW = w => (w == null || w === '' ? '—' : `${+w % 1 ? (+w).toFixed(1) : +w} lb`);

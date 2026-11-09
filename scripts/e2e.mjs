@@ -3,6 +3,7 @@
 //   CHROME=/usr/bin/google-chrome npm run e2e
 import { chromium } from 'playwright-core';
 import { mkdirSync, readFileSync } from 'node:fs';
+import { seedSample } from './sample-data.mjs';
 
 const APP_URL = process.env.URL || 'http://localhost:5173/';
 const SHOTS = new URL('../screenshots/', import.meta.url).pathname;
@@ -11,7 +12,7 @@ const log = (...a) => console.log('•', ...a);
 const assert = (c, m) => { if (!c) throw new Error('ASSERT: ' + m); log('ok -', m); };
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--no-sandbox'] });
-const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, acceptDownloads: true });
+const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, acceptDownloads: true, timezoneId: 'America/Los_Angeles' });
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
@@ -22,29 +23,7 @@ await page.waitForSelector('.hero');
 assert(await page.locator('text=Week 1 of 6').count(), 'program week shown');
 
 // ---- seed some past history (sample data) so charts/recovery have shape
-await page.evaluate(() => {
-  const s = window.__rep.state; const iso = (d, h) => { const x = new Date(); x.setDate(x.getDate() - d); x.setHours(h, 0, 0, 0); return x; };
-  const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const mk = (wid, name, daysAgo, exs) => { const st = iso(daysAgo, 18); const en = new Date(st.getTime() + 55 * 60000);
-    return { id: 'seed' + wid + daysAgo, workoutId: wid, workoutName: name, start: st.toISOString(), end: en.toISOString(), date: ymd(st), week: 1, deload: false, badDay: false, status: 'done', exercises: exs.map(([exId, reps, w, rs]) => ({ exId, reps, sets: rs.map(r => ({ weight: w, reps: r })) })) }; };
-  s.sessions.push(
-    mk('U1', 'Upper 1', 21, [['bench_press', [6, 8], 175, [8, 7, 6]], ['chest_supported_row', [8, 10], 140, [10, 9, 9]], ['seated_db_shoulder_press', [8, 10], 50, [9, 8, 8]]]),
-    mk('U1', 'Upper 1', 14, [['bench_press', [6, 8], 175, [8, 8, 8]], ['chest_supported_row', [8, 10], 140, [10, 10, 10]], ['seated_db_shoulder_press', [8, 10], 50, [10, 9, 9]]]),
-    mk('U1', 'Upper 1', 7, [['bench_press', [6, 8], 180, [8, 8, 8]], ['chest_supported_row', [8, 10], 145, [10, 10, 9]], ['seated_db_shoulder_press', [8, 10], 50, [10, 10, 10]]]),
-    mk('L1', 'Lower 1', 5, [['box_squat', [6, 8], 205, [8, 7, 7]], ['romanian_deadlift', [8, 10], 185, [10, 9, 9]], ['leg_press', [10, 12], 360, [12, 12, 11]]]),
-    mk('U2', 'Upper 2', 3, [['lat_pulldown', [8, 12], 160, [12, 11, 10]], ['incline_db_press', [8, 12], 60, [10, 10, 9]], ['cable_lateral_raise', [12, 15], 15, [15, 14, 13]]]),
-    mk('L2', 'Lower 2', 2, [['trap_bar_deadlift', [6, 8], 245, [8, 8, 7]], ['split_squat', [8, 10], 40, [10, 9, 9]], ['hip_thrust', [10, 12], 225, [12, 12, 12]]]),
-  );
-  const bw = [['2026-10-26', 254.2], ['2026-10-30', 253.6], ['2026-11-02', 253.0], ['2026-11-05', 252.8]];
-  for (const [date, lb] of bw) s.bodyweight.push({ date, lb });
-  s.daily[ymd(iso(1, 12))] = { protein: 205, kcal: 1780, waterOz: 96, sleep: 7, steps: 7400, dizzy: false, dizzyNote: '', cls: true };
-  // past 6 days of protein + supplements
-  const pv = [212, 168, 190, 225, 150, 205];
-  pv.forEach((g, i) => { const k = ymd(iso(i + 1, 12)); const d = s.daily[k] || (s.daily[k] = { protein: 0, kcal: 0, waterOz: 0, sleep: null, steps: 0, dizzy: null, dizzyNote: '', cls: false });
-    d.protein = g; d.proteinLog = [{ id: 'p' + i, ts: iso(i + 1, 13).toISOString(), g, label: 'seed' }];
-    d.supps = {}; s.supplements.forEach((x, j) => { if (i < 3 || j < 2) d.supps[x.id] = iso(i + 1, 8).toISOString(); }); });
-  localStorage.setItem('rep-workout.v1', JSON.stringify(s)); location.reload();
-});
+await page.evaluate(seedSample); await page.reload({ waitUntil: 'domcontentloaded' });
 await page.waitForSelector('.hero');
 page.on('dialog', d => d.accept().catch(() => {}));
 assert(await page.locator('.inj >> text=Tirzepatide').count(), 'injection card on Today (not logged yet)');
@@ -82,14 +61,29 @@ assert(await page.locator('text=Dizzy or lightheaded?').count(), 'persistent diz
 // lift 1: bench — check prefilled values
 const w0 = await page.inputValue('input[data-i="0"][data-j="0"][data-f="weight"]');
 assert(w0 === '185', 'bench weight prefilled 185');
-// bump reps on set 1 via stepper, then check off
+const sgText = i => page.textContent(`section.card.ex:nth-of-type(${i}) .suggest`);
+const cards = page.locator('section.card.ex');
+assert((await cards.nth(0).locator('.suggest').textContent()).includes('Hit 8,8,8 at 180 last time → 185 today (+5 lb).'), 'bench explanation: Hit 8,8,8 at 180 → 185 (+5 lb)');
+assert((await cards.nth(0).locator('.targets').textContent()).includes('185×6'), 'per-set targets shown (185×6)');
+assert((await cards.nth(0).locator('.warm').textContent()).includes('45×10'), 'warm-up ramp shown for first lift (bar 45×10 …)');
+assert((await cards.nth(1).locator('.suggest').textContent()).includes('Hit 10,10,9 at 145 → stay at 145, aim 10,10,10.'), 'row double progression per set (10,10,10)');
+assert((await cards.nth(2).locator('.suggest').textContent()).includes('→ 55 today (+5 lb/hand (next DB up))'), 'DB shoulder press +5/hand');
+// bump reps on set 1 via stepper, then check off → PR (185×7 beats 180×8 e1RM; heaviest ever)
 await page.click('[data-act=step][data-i="0"][data-j="0"][data-f="reps"][data-d="1"]');
 await page.click('[data-act=toggleSet][data-i="0"][data-j="0"]');
+await page.waitForSelector('#pr.show >> text=NEW PR');
+log('ok - PR celebration shown');
+await page.waitForTimeout(450);
+await page.screenshot({ path: SHOTS + '11-pr-celebration.png' });
 await page.waitForSelector('#timer.show');
 const t = await page.textContent('.tleft');
 assert(/^2:(2|3)\d$/.test(t), `first-lift rest timer ~150 s (${t})`);
+await page.click('[data-act=rir][data-i="0"][data-j="0"][data-v="2"]');
 await page.click('[data-act=toggleSet][data-i="0"][data-j="1"]');
-await page.waitForTimeout(500);
+await page.click('[data-act=rir][data-i="0"][data-j="1"][data-v="1"]');
+assert((await page.evaluate(() => window.__rep.state.active.exercises[0].sets.map(s => s.rir))).join() === '2,1,', 'RIR chips saved per set');
+await page.waitForTimeout(2600);
+await page.evaluate(() => { document.querySelector('section.card.ex').scrollIntoView({ block: 'start' }); window.scrollBy(0, -50); });
 await page.screenshot({ path: SHOTS + '01-today-workout-logging.png' });
 
 // timer end → GO!
@@ -116,6 +110,7 @@ await page.evaluate(() => window.scrollTo(0, 0));
 await page.screenshot({ path: SHOTS + '07-today-done.png' });
 assert(sess.exercises.length === 3 && sess.exercises.every(e => e.sets.length === 3), 'session saved with 3×3 sets');
 assert(sess.exercises[0].sets[0].reps === 7 && sess.exercises[0].sets[0].weight === 185, 'stepper edit saved (185×7)');
+assert(sess.exercises[0].sets[0].rir === 2 && sess.exercises[0].sets[0].pr.includes('e1rm') && sess.exercises[0].sets[0].pr.includes('weight'), 'saved set keeps RIR + PR flags');
 
 // ---- Recovery
 await page.waitForTimeout(2000); // let toast clear
@@ -130,6 +125,40 @@ assert(await page.locator('svg.chart').count() >= 2, 'bodyweight + strength char
 await page.screenshot({ path: SHOTS + '03-progress.png', fullPage: false });
 await page.evaluate(() => document.querySelector('.cal').scrollIntoView({ block: 'center' }));
 await page.screenshot({ path: SHOTS + '06-progress-calendar.png' });
+// relative strength + strength-on-the-cut
+await page.click('[data-act=metric][data-m=rel]');
+assert(await page.locator('text=Strength on the cut').count(), 'strength-on-the-cut card');
+assert(/× BW/.test(await page.textContent('.seg >> text=× BW')), 'relative strength metric');
+await page.evaluate(() => { const h = [...document.querySelectorAll('.card h3')].find(x => x.textContent === 'Strength'); h.closest('.card').scrollIntoView({ block: 'start' }); window.scrollBy(0, -10); });
+await page.screenshot({ path: SHOTS + '13-progress-relative-strength.png' });
+// Renpho import (kg export → lb) with preview, keep-mine default, body comp card
+await page.click('[data-act=renphoPick] >> nth=0');
+await page.setInputFiles('#renphoFile', new URL('../tests/fixtures/renpho-kg.csv', import.meta.url).pathname);
+await page.waitForSelector('.panel >> text=8 days found');
+assert((await page.textContent('.panel')).includes('2026-10-23 → 2026-11-08'), 'Renpho preview shows date range');
+assert(await page.locator('.panel [data-act=renphoUnit].on[data-u=kg]').count(), 'Renpho kg detected');
+assert(await page.locator('.panel >> text=Keep mine').count(), 'conflict choice offered');
+await page.waitForTimeout(400);
+await page.screenshot({ path: SHOTS + '14-renpho-preview.png' });
+const bwBefore = await page.evaluate(() => window.__rep.state.bodyweight.find(b => b.date === '2026-10-23').lb);
+await page.click('[data-act=renphoImport]');
+const bwAfter = await page.evaluate(() => window.__rep.state.bodyweight);
+assert(bwAfter.find(b => b.date === '2026-10-23').lb === bwBefore && bwAfter.find(b => b.date === '2026-10-23').bf === 34.1, 'keep-mine preserves manual weight, adds body fat');
+assert(bwAfter.find(b => b.date === '2026-11-08').source === 'renpho' && new Set(bwAfter.map(b => b.date)).size === bwAfter.length, 'Renpho rows imported, one per day');
+assert(await page.locator('text=Body composition').count() && await page.locator('text=of weight lost came from lean mass').count(), 'body composition card with lean-mass trend');
+await page.evaluate(() => { const h = [...document.querySelectorAll('.card h3')].find(x => x.textContent === 'Body composition'); h.closest('.card').scrollIntoView({ block: 'start' }); window.scrollBy(0, -16); });
+await page.waitForTimeout(3000); // let toast clear
+await page.screenshot({ path: SHOTS + '15-body-composition.png' });
+// exercise history / trend sheet
+await page.click('[data-act=exHist][data-ex=bench_press]');
+await page.waitForSelector('.panel >> text=History & PRs');
+assert(await page.locator('.panel .hs.pr').count() >= 1, 'history marks PR sets');
+assert((await page.textContent('.panel')).includes('Next time:'), 'history shows next-time suggestion');
+await page.waitForTimeout(300);
+await page.screenshot({ path: SHOTS + '12-exercise-history.png' });
+await page.click('.panel [data-act=histMetric][data-m=rel]');
+await page.click('.panel [data-act=closeSheet]');
+await page.click('[data-act=metric][data-m=e1rm]');
 
 // ---- Daily: protein hero
 await page.click('.tabbar [data-tab=daily]');
@@ -213,6 +242,10 @@ await page.click(`[data-act=suppDel][data-id="${fid}"]`);
 sl = await page.evaluate(() => window.__rep.state.supplements.map(x => x.name));
 assert(JSON.stringify(sl) === '["Creatine","Protein shake"]', 'supplement remove');
 
+// ---- Settings: per-exercise weight step
+await page.fill('input[data-change=inc][data-id=lat_pulldown]', '5'); await page.press('input[data-change=inc][data-id=lat_pulldown]', 'Tab');
+assert((await page.evaluate(() => window.__rep.state.settings.increments.lat_pulldown)) === 5, 'per-exercise weight step editable');
+
 // ---- Settings: schedule edit + export/import round trip
 await page.click('.tabbar [data-tab=settings]');
 await page.selectOption('select[data-change=sched][data-d="3"]', 'class');
@@ -222,20 +255,23 @@ const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data
 const path = SHOTS + '../.e2e-backup.json'; await dl.saveAs(path);
 const backup = JSON.parse(readFileSync(path, 'utf8'));
 assert(backup.data.sessions.length === 7, 'export contains sessions');
-assert(backup.data.supplements.length === 2 && backup.data.injections.length === 1 && backup.data.quickFoods.length === 4, 'export contains supplements, injections, quick foods');
+assert(backup.data.bodyweight.some(b => b.bf != null) && backup.data.supplements.length === 2 && backup.data.injections.length === 1 && backup.data.quickFoods.length === 4, 'export contains supplements, injections, quick foods');
 await page.evaluate(() => localStorage.clear());
 await page.setInputFiles('#importFile', path);
 await page.waitForFunction(() => window.__rep.state.sessions.length === 7 && window.__rep.state.supplements.length === 2);
 log('ok - import restored backup');
 
 // ---- offline: service worker serves app shell
-await page.reload(); await page.waitForFunction(() => navigator.serviceWorker.controller);
-await ctx.setOffline(true); await page.reload(); await page.waitForSelector('.tabbar');
+// reload once so the freshly-installed SW controls the page (fallback to goto if the reload stalls)
+try { await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 }); }
+catch { log('note - reload stalled, retrying via goto'); await page.goto(APP_URL, { waitUntil: 'domcontentloaded' }); }
+await page.waitForFunction(() => navigator.serviceWorker.controller);
+await ctx.setOffline(true); await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('.tabbar');
 log('ok - loads offline via service worker'); await ctx.setOffline(false);
 
 // ---- clear sample data
 await page.evaluate(() => { localStorage.clear(); });
-await page.reload(); await page.waitForSelector('.hero');
+await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('.hero');
 const fresh = await page.evaluate(() => ({ s: window.__rep.state.sessions.length, bw: window.__rep.state.bodyweight, sup: window.__rep.state.supplements, inj: window.__rep.state.injections.length }));
 assert(JSON.stringify(fresh.sup.map(x => x.name)) === '["Creatine","Protein shake"]' && !fresh.sup.some(x => x.example) && fresh.inj === 0, 'fresh state: Creatine + Protein shake (no examples), no injections');
 assert(fresh.s === 0 && fresh.bw.length === 1 && fresh.bw[0].lb === 255, 'fresh state after clear (only seed 255 lb on 2026-10-23)');
