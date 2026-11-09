@@ -2,7 +2,7 @@ import { state, save, ymd, parseYmd, mondayOf, addDays, day, replaceState, reset
 import { EXERCISES, MUSCLES, exercise, demoUrl, alternatives } from './exercises.js';
 import { PROGRESSION, BODYWEIGHT, SUPP_TIMINGS } from './program.js';
 import { WD, WD_LONG, workoutById, doneSessions, programWeek, scheduleFor, nextInRotation, suggest, fmtW,
-  historyFor, e1rm, recovery, recColor, streak, trainingDays, round, suppAdherence, suppStreak, injectionStatus } from './logic.js';
+  historyFor, e1rm, recovery, recColor, streak, trainingDays, round, suppAdherence, suppStreak, injectionStatus, injLine } from './logic.js';
 import { bodySvg } from './body.js';
 import { lineChart, barChart } from './charts.js';
 
@@ -301,8 +301,8 @@ function protein7(endKey) {
   return `${barChart(bars, { goal: state.settings.targets.protein })}<div class="muted sm">7-day avg <b class="accent">${avg} g</b> · goal hit ${hit}/7 days</div>`;
 }
 function suppCard(k, d) {
-  const list = state.supplements;
-  if (!list.length) return `<section class="card"><h3>Supplements</h3><p class="muted">No supplements set up.</p><button class="btn ghost" data-act="go" data-tab="settings">Add in Settings</button></section>`;
+  const list = state.supplements; const inj = injLine(k);
+  if (!list.length && !inj) return `<section class="card"><h3>Supplements</h3><p class="muted">No supplements set up.</p><button class="btn ghost" data-act="go" data-tab="settings">Add in Settings</button></section>`;
   const a = suppAdherence(k);
   const groups = SUPP_TIMINGS.map(([tk, tl]) => [tl, list.filter(x => x.timing === tk)]).filter(([, xs]) => xs.length);
   const end = parseYmd(k); let hist = '';
@@ -310,10 +310,13 @@ function suppCard(k, d) {
     hist += `<div class="sh ${p >= 1 ? 'full' : p > 0 ? 'part' : ''} ${i === 0 ? 'cur' : ''}"><span>${WD[dt.getDay()][0]}</span><b>${Math.round(p * 100)}%</b></div>`; }
   const st = suppStreak();
   return `<section class="card"><div class="row between"><div><div class="eyebrow accent">Supplements</div><h2>${a.n}/${a.total} taken</h2></div>${ring(a.n, a.total, 'sm', '#30d158')}</div>
+    ${inj ? `<div class="sgroup"><div class="lbl">Weekly injection</div><button class="supp inj-line ${inj.done ? 'on' : ''}" data-act="suppInj">
+      <span class="tick">${inj.done ? '✓' : ''}</span><span class="grow"><b>💉 Tirzepatide</b><small>${inj.done ? (inj.logged ? 'logged' : 'done this week') : `due ${WD_LONG[state.settings.injectionDay]}–${WD_LONG[(state.settings.injectionDay + (state.settings.injectionWindowDays || 2) - 1) % 7]}`}${state.settings.injectionDose ? ' · ' + esc(state.settings.injectionDose) : ''}</small></span>
+      <small class="stime">${inj.logged ? fmtTime(inj.logged.ts) : inj.done ? 'done' : 'tap when taken'}</small></button></div>` : ''}
     ${groups.map(([tl, xs]) => `<div class="sgroup"><div class="lbl">${tl}</div>${xs.map(x => { const ts = d.supps[x.id]; return `<button class="supp ${ts ? 'on' : ''}" data-act="supp" data-id="${x.id}">
-      <span class="tick">${ts ? '✓' : ''}</span><span class="grow"><b>${esc(x.name)}</b>${x.example ? ' <span class="chip sm warn">example</span>' : ''}<small>${esc(x.dose)}</small></span><small class="stime">${ts ? fmtTime(ts) : 'tap when taken'}</small></button>`; }).join('')}</div>`).join('')}
+      <span class="tick">${ts ? '✓' : ''}</span><span class="grow"><b>${esc(x.name)}</b><small>${esc(x.dose)}${x.proteinG ? ` · +${x.proteinG} g protein` : ''}</small></span><small class="stime">${ts ? fmtTime(ts) : 'tap when taken'}</small></button>`; }).join('')}</div>`).join('')}
     <div class="row between"><h3 class="mt">Last 7 days</h3><span class="chip">🔥 ${st}-day streak</span></div><div class="shist">${hist}</div>
-    ${list.some(x => x.example) ? '<p class="muted sm">Items marked <b>example</b> are starters — edit or remove them in Settings → Supplements.</p>' : ''}</section>`;
+    </section>`;
 }
 function injectionCard(onToday) {
   const st = injectionStatus(); const s = state.settings;
@@ -376,12 +379,13 @@ function viewSettings() {
         <label class="mini-l">Reps<input class="inp num" type="number" data-change="plo" data-w="${wi}" data-x="${xi}" value="${x.reps[0]}"></label>–
         <label class="mini-l"><input class="inp num" type="number" data-change="phi" data-w="${wi}" data-x="${xi}" value="${x.reps[1]}"></label></div></div>`).join('')}</div>`).join('')}
     <button class="btn ghost" data-act="resetProgram">Reset program to Coach Dre default</button></section>`;
-  h += `<section class="card"><h3>Supplements</h3><p class="muted sm">Daily checklist on the Daily tab. Reorder with ↑ ↓.</p>
+  h += `<section class="card"><h3>Supplements</h3><p class="muted sm">Daily checklist on the Daily tab. Reorder with ↑ ↓. Tirzepatide is added automatically on injection due days (see below).</p>
     <div id="suppEditor">${state.supplements.map((x, i) => `<div class="pslot sedit" data-id="${x.id}"><div class="row gap">
       <input class="inp grow" data-change="suppName" data-id="${x.id}" value="${esc(x.name)}" placeholder="Name" aria-label="Supplement name">
-      ${x.example ? '<span class="chip sm warn">example</span>' : ''}</div>
+</div>
       <div class="row gap"><input class="inp sdose" data-change="suppDose" data-id="${x.id}" value="${esc(x.dose)}" placeholder="Dose" aria-label="Dose">
       <select class="inp stiming" data-change="suppTiming" data-id="${x.id}" aria-label="Timing">${SUPP_TIMINGS.map(([v, l]) => `<option value="${v}" ${v === x.timing ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="row gap"><label class="mini-l grow">Offer to add protein when checked</label><input class="inp num" type="number" inputmode="numeric" data-change="suppProt" data-id="${x.id}" value="${x.proteinG || ''}" placeholder="0" aria-label="Protein grams"><span class="unit">g</span></div>
       <div class="row gap sbtns"><button class="icon" data-act="suppMove" data-id="${x.id}" data-n="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button><button class="icon" data-act="suppMove" data-id="${x.id}" data-n="1" ${i === state.supplements.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
       <span class="grow"></span><button class="btn ghost sm" data-act="suppDel" data-id="${x.id}">Remove</button></div></div>`).join('') || '<p class="muted">No supplements.</p>'}</div>
     <button class="btn primary wide" data-act="suppAdd">+ Add supplement</button></section>`;
@@ -565,7 +569,32 @@ const actions = {
   addFood: el => { const f = state.quickFoods.find(x => x.id === el.dataset.id); if (f) addProtein(f.g, f.name); },
   addCustomP: () => { const g = parseFloat($('#pG').value); if (!(g > 0)) return toast('Enter grams'); addProtein(g, $('#pLabel').value.trim()); },
   delP: el => delProtein(el.dataset.id),
-  supp: el => { const d = day(ui.dailyDate); const id = el.dataset.id; if (d.supps[id]) delete d.supps[id]; else d.supps[id] = nowFor(ui.dailyDate); save(); render(); },
+  supp: el => {
+    const d = day(ui.dailyDate); const id = el.dataset.id; const x = state.supplements.find(y => y.id === id);
+    d.suppProtein = d.suppProtein || {};
+    if (d.supps[id]) { // uncheck: also remove the protein entry it added
+      delete d.supps[id];
+      if (d.suppProtein[id]) { d.proteinLog = d.proteinLog.filter(e => e.id !== d.suppProtein[id]); delete d.suppProtein[id]; recalcProtein(d); }
+      save(); render(); return;
+    }
+    d.supps[id] = nowFor(ui.dailyDate); save(); render();
+    if (x && x.proteinG) sheet(`<div class="eyebrow accent">${esc(x.name)} ✓</div><h2>Add to protein tracker?</h2>
+      <div class="row custom"><input id="spG" class="inp big" type="number" inputmode="numeric" value="${x.proteinG}" aria-label="Grams"><span class="unit">g protein</span></div>
+      <button class="btn primary xl" data-act="suppAddP" data-id="${id}">Add protein</button><button class="btn ghost wide" data-act="closeSheet">Just check it off</button>`);
+  },
+  suppAddP: el => {
+    const id = el.dataset.id; const x = state.supplements.find(y => y.id === id); const g = parseFloat($('#spG').value);
+    closeSheet(); if (!(g > 0)) return;
+    const d = day(ui.dailyDate); const e = { id: uid(), ts: d.supps[id] || nowFor(ui.dailyDate), g, label: x ? x.name : 'Shake' };
+    d.proteinLog.push(e); d.suppProtein = d.suppProtein || {}; d.suppProtein[id] = e.id; recalcProtein(d); save(); render(); toast(`+${g} g protein`);
+  },
+  suppInj: () => {
+    const k = ui.dailyDate; const inj = injLine(k);
+    if (inj && inj.logged) { if (confirm('Remove the tirzepatide injection logged for this day?')) { state.injections = state.injections.filter(i => i !== inj.logged); save(); render(); } return; }
+    if (inj && inj.done) return toast('Already logged this week');
+    const ts = nowFor(k); state.injections.push({ id: uid(), ts, date: k, dose: state.settings.injectionDose || '', site: '' });
+    save(); render(); toast('Injection logged');
+  },
   suppAdd: () => { state.supplements.push({ id: uid(), name: 'New supplement', dose: '', timing: 'morning' }); save(); render(); const els = document.querySelectorAll('[data-change=suppName]'); const el = els[els.length - 1]; if (el) { el.focus(); el.select(); } },
   suppDel: el => { const x = state.supplements.find(y => y.id === el.dataset.id); if (x && confirm(`Remove ${x.name}?`)) { state.supplements = state.supplements.filter(y => y !== x); save(); render(); } },
   suppMove: el => { const L = state.supplements; const i = L.findIndex(y => y.id === el.dataset.id); const j = i + +el.dataset.n; if (i < 0 || j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; save(); render(); },
@@ -620,6 +649,7 @@ const changes = {
   badDay: el => { state.active.badDay = el.checked; save(); render(); },
   progEx: el => { ui.progEx = el.value; render(); },
   suppName: el => { const x = state.supplements.find(y => y.id === el.dataset.id); if (x) { x.name = el.value; delete x.example; save(); } },
+  suppProt: el => { const x = state.supplements.find(y => y.id === el.dataset.id); if (x) { const g = Math.max(0, +el.value || 0); if (g) x.proteinG = g; else delete x.proteinG; save(); } },
   suppDose: el => { const x = state.supplements.find(y => y.id === el.dataset.id); if (x) { x.dose = el.value; delete x.example; save(); } },
   suppTiming: el => { const x = state.supplements.find(y => y.id === el.dataset.id); if (x) { x.timing = el.value; delete x.example; save(); render(); } },
   qfName: el => { const f = state.quickFoods.find(y => y.id === el.dataset.id); if (f) { f.name = el.value; save(); } },
@@ -724,4 +754,4 @@ if (state.active) wake(true);
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(() => { });
 
 // test hook (used by scripts/e2e.mjs)
-window.__rep = { get state() { return state; }, render, injectionStatus, suppAdherence };
+window.__rep = { get state() { return state; }, render, injectionStatus, suppAdherence, injLine };

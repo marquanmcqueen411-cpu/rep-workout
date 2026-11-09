@@ -137,11 +137,26 @@ export function streak() {
 }
 
 // ---- Supplements
+export function injDueDay(dt) {
+  const wd = state.settings.injectionDay, win = Math.max(1, state.settings.injectionWindowDays || 2);
+  return (dt.getDay() - wd + 7) % 7 < win;
+}
+export const injectionOn = dateKey => state.injections.find(i => i.date === dateKey) || null;
+/** Tirzepatide checklist line for a date: shown on due-window days (or the day it was logged). */
+export function injLine(dateKey) {
+  const dt = parseYmd(dateKey); const due = injDueDay(dt); const logged = injectionOn(dateKey);
+  if (!due && !logged) return null;
+  const done = !!logged || (due && injectionStatus(dt).status === 'done');
+  return { due, done, logged, counts: due };
+}
 export function suppAdherence(dateKey) {
-  const list = state.supplements; if (!list.length) return null;
+  const list = state.supplements;
   const taken = (state.daily[dateKey] && state.daily[dateKey].supps) || {};
-  const n = list.filter(s => taken[s.id]).length;
-  return { n, total: list.length, pct: n / list.length };
+  let n = list.filter(s => taken[s.id]).length, total = list.length;
+  const inj = injLine(dateKey);
+  if (inj && inj.counts) { total++; if (inj.done) n++; }
+  if (!total) return null;
+  return { n, total, pct: n / total };
 }
 export function suppStreak() {
   // consecutive 100% days ending today (or yesterday if today isn't complete yet)

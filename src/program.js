@@ -95,12 +95,14 @@ export const BODYWEIGHT = {
   weighInDay: 1, // Monday-morning weigh-in prompt
 };
 
-// Supplements — STARTER EXAMPLES ONLY (edit/remove in Settings → Supplements).
+// Boss's daily supplements (edit in Settings → Supplements).
 // timing: 'morning' | 'pre' | 'post' | 'evening'
+// proteinG: checking it off offers to add that many grams to the protein tracker.
+// Tirzepatide is NOT listed here: it's the weekly injection (settings.injectionDay) and is
+// added to the checklist automatically on due days only. Electrolytes live in the pre-workout check.
 export const DEFAULT_SUPPLEMENTS = [
-  { id: 'ex-creatine', name: 'Creatine', dose: '5 g', timing: 'morning', example: true },
-  { id: 'ex-multi', name: 'Multivitamin', dose: '1 tab', timing: 'morning', example: true },
-  { id: 'ex-electrolytes', name: 'Electrolytes', dose: '1 packet', timing: 'pre', example: true },
+  { id: 'creatine', name: 'Creatine', dose: '5 g', timing: 'morning' },
+  { id: 'protein-shake', name: 'Protein shake', dose: '1 shake', timing: 'post', proteinG: 50 },
 ];
 export const SUPP_TIMINGS = [['morning', 'Morning'], ['pre', 'Pre-workout'], ['post', 'Post-workout'], ['evening', 'Evening']];
 

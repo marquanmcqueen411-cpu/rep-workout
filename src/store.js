@@ -56,6 +56,8 @@ function migrate(s) {
   for (const k of ['sessions', 'bodyweight', 'dizzyEvents', 'supplements', 'quickFoods', 'injections']) if (!Array.isArray(out[k])) out[k] = d[k];
   if (!out.program || !Array.isArray(out.program.workouts)) out.program = d.program;
   if (!out.daily || typeof out.daily !== 'object') out.daily = {};
+  // v1.1 shipped placeholder "example" supplements — swap them for the real defaults
+  if (out.supplements.length && out.supplements.every(x => x.example)) out.supplements = d.supplements;
   return out;
 }
 

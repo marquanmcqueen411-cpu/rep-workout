@@ -153,12 +153,23 @@ await page.fill('#pG', '45'); await page.fill('#pLabel', 'chicken'); await page.
 await page.click('[data-act=addP][data-n="25"]');
 pr = await P(); assert(pr.g === 138, 'protein total 138 g');
 assert(await page.locator('svg.chart').count() >= 1, '7-day protein chart renders');
-// supplements
-await page.click('.supp:has-text("Creatine")'); await page.click('.supp:has-text("Electrolytes")');
-const ad = await page.evaluate(() => { const R = window.__rep; const k = Object.keys(R.state.daily).sort().at(-1); return R.suppAdherence(k); });
-assert(ad.n === 2 && ad.total === 3, 'supplement adherence 2/3');
+// supplements (Mon = not an injection day → only Creatine + Protein shake count)
+assert(!(await page.locator('.inj-line').count()), 'no tirzepatide line on non-due day');
+await page.click('.supp:has-text("Creatine")');
+let ad = await page.evaluate(() => window.__rep.suppAdherence(Object.keys(window.__rep.state.daily).sort().at(-1)));
+assert(ad.n === 1 && ad.total === 2, 'adherence 1/2 on non-due day');
+await page.click('.supp:has-text("Protein shake")');
+await page.waitForSelector('text=Add to protein tracker?');
+assert((await page.inputValue('#spG')) === '50', 'shake offers 50 g (editable)');
+await page.fill('#spG', '45'); await page.click('[data-act=suppAddP]');
+pr = await P(); assert(pr.g === 183, 'shake check-off added 45 g (183 g)');
+await page.click('.supp:has-text("Protein shake")'); // uncheck removes linked entry
+pr = await P(); assert(pr.g === 138, 'unchecking shake removes its protein entry');
+await page.click('.supp:has-text("Protein shake")'); await page.click('[data-act=suppAddP]');
+pr = await P(); assert(pr.g === 188, 'shake re-checked with default 50 g (188 g)');
+ad = await page.evaluate(() => window.__rep.suppAdherence(Object.keys(window.__rep.state.daily).sort().at(-1)));
+assert(ad.n === 2 && ad.total === 2, 'adherence 2/2');
 assert(await page.locator('.supp.on .stime').first().textContent() !== 'tap when taken', 'taken time recorded');
-await page.click('.supp:has-text("Electrolytes")'); await page.click('.supp:has-text("Electrolytes")');
 // other daily fields
 await page.click('[data-act=addW][data-n="16"]'); await page.click('[data-act=addW][data-n="8"]');
 await page.click('[data-act=addK][data-n="500"]');
@@ -170,11 +181,19 @@ await page.screenshot({ path: SHOTS + '04-daily-protein-hero.png' });
 await page.evaluate(() => document.querySelector('.plog').scrollIntoView({ block: 'start' }));
 await page.evaluate(() => window.scrollBy(0, -12));
 await page.screenshot({ path: SHOTS + '08-daily-protein-log-7day.png' });
-await page.evaluate(() => { const el = [...document.querySelectorAll('.card')].find(c => c.textContent.includes('taken') && c.querySelector('.supp')); el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -12); });
+// go back to Saturday (injection due day): tirzepatide line appears, linked to the injection log
+const satBack = (new Date().getDay() + 1) % 7; // days back to last Saturday
+for (let k = 0; k < satBack; k++) await page.click('[data-act=dday][data-n="-1"]');
+assert(await page.locator('.inj-line').count(), 'tirzepatide line shown on due day (Sat)');
+let satAd = await page.evaluate(() => { const R = window.__rep; const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 1) % 7)); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; return { k, a: R.suppAdherence(k) }; });
+assert(satAd.a.total === 3 && satAd.a.n === 2, 'Sat adherence counts tirzepatide (2/3 before logging)');
+await page.click('.inj-line');
+assert((await page.evaluate(() => window.__rep.state.injections.map(i => i.date))).includes(satAd.k), 'checking tirzepatide line logs the injection for Sat');
+assert((await page.evaluate(() => window.__rep.injectionStatus().status)) === 'done', 'injection card now done (same log)');
+await page.waitForTimeout(1900);
+await page.evaluate(() => { const el = [...document.querySelectorAll('.card')].find(c => c.querySelector('.supp')); el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -12); });
 await page.screenshot({ path: SHOTS + '09-daily-supplements.png' });
-// injection: log it as taken Saturday
-await page.click('.inj [data-act=logInj][data-back="1"]');
-assert((await page.evaluate(() => window.__rep.injectionStatus().status)) === 'done', 'injection back-logged for Saturday → done');
+for (let k = 0; k < satBack; k++) await page.click('[data-act=dday][data-n="1"]');
 
 // ---- Settings: supplement editor (add / edit / reorder / remove)
 await page.click('.tabbar [data-tab=settings]');
@@ -185,12 +204,14 @@ await page.locator('[data-change=suppDose]').last().fill('2 caps'); await page.l
 await page.locator('[data-change=suppTiming]').last().selectOption('evening');
 const fid = await page.evaluate(() => window.__rep.state.supplements.at(-1).id);
 await page.click(`[data-act=suppMove][data-id="${fid}"][data-n="-1"]`);
-await page.click('[data-act=suppDel][data-id="ex-multi"]');
-const sl = await page.evaluate(() => window.__rep.state.supplements.map(x => `${x.name}|${x.dose}|${x.timing}`));
-assert(JSON.stringify(sl) === JSON.stringify(['Creatine|5 g|morning', 'Fish oil|2 caps|evening', 'Electrolytes|1 packet|pre']), 'supplement add/edit/reorder/remove ' + JSON.stringify(sl));
+let sl = await page.evaluate(() => window.__rep.state.supplements.map(x => `${x.name}|${x.dose}|${x.timing}`));
+assert(JSON.stringify(sl) === JSON.stringify(['Creatine|5 g|morning', 'Fish oil|2 caps|evening', 'Protein shake|1 shake|post']), 'supplement add/edit/reorder ' + JSON.stringify(sl));
 await page.evaluate(() => { const h = [...document.querySelectorAll('.card h3')].find(x => x.textContent === 'Supplements'); h.scrollIntoView({ block: 'start' }); window.scrollBy(0, -12); });
 await page.waitForTimeout(2000);
 await page.screenshot({ path: SHOTS + '10-settings-supplements.png' });
+await page.click(`[data-act=suppDel][data-id="${fid}"]`);
+sl = await page.evaluate(() => window.__rep.state.supplements.map(x => x.name));
+assert(JSON.stringify(sl) === '["Creatine","Protein shake"]', 'supplement remove');
 
 // ---- Settings: schedule edit + export/import round trip
 await page.click('.tabbar [data-tab=settings]');
@@ -201,10 +222,10 @@ const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data
 const path = SHOTS + '../.e2e-backup.json'; await dl.saveAs(path);
 const backup = JSON.parse(readFileSync(path, 'utf8'));
 assert(backup.data.sessions.length === 7, 'export contains sessions');
-assert(backup.data.supplements.length === 3 && backup.data.injections.length === 1 && backup.data.quickFoods.length === 4, 'export contains supplements, injections, quick foods');
+assert(backup.data.supplements.length === 2 && backup.data.injections.length === 1 && backup.data.quickFoods.length === 4, 'export contains supplements, injections, quick foods');
 await page.evaluate(() => localStorage.clear());
 await page.setInputFiles('#importFile', path);
-await page.waitForFunction(() => window.__rep.state.sessions.length === 7 && window.__rep.state.supplements.length === 3);
+await page.waitForFunction(() => window.__rep.state.sessions.length === 7 && window.__rep.state.supplements.length === 2);
 log('ok - import restored backup');
 
 // ---- offline: service worker serves app shell
@@ -216,7 +237,7 @@ log('ok - loads offline via service worker'); await ctx.setOffline(false);
 await page.evaluate(() => { localStorage.clear(); });
 await page.reload(); await page.waitForSelector('.hero');
 const fresh = await page.evaluate(() => ({ s: window.__rep.state.sessions.length, bw: window.__rep.state.bodyweight, sup: window.__rep.state.supplements, inj: window.__rep.state.injections.length }));
-assert(fresh.sup.length === 3 && fresh.sup.every(x => x.example) && fresh.inj === 0, 'fresh state has example supplements, no injections');
+assert(JSON.stringify(fresh.sup.map(x => x.name)) === '["Creatine","Protein shake"]' && !fresh.sup.some(x => x.example) && fresh.inj === 0, 'fresh state: Creatine + Protein shake (no examples), no injections');
 assert(fresh.s === 0 && fresh.bw.length === 1 && fresh.bw[0].lb === 255, 'fresh state after clear (only seed 255 lb on 2026-10-23)');
 await page.evaluate(() => localStorage.clear());
 
