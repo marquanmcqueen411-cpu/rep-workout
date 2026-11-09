@@ -133,7 +133,7 @@ const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data
 const path = SHOTS + '../.e2e-backup.json'; await dl.saveAs(path);
 const backup = JSON.parse(readFileSync(path, 'utf8'));
 assert(backup.data.sessions.length === 7, 'export contains sessions');
-page.on('dialog', d => d.accept());
+page.on('dialog', d => d.accept().catch(() => {}));
 await page.evaluate(() => localStorage.clear());
 await page.setInputFiles('#importFile', path);
 await page.waitForFunction(() => window.__rep.state.sessions.length === 7);
