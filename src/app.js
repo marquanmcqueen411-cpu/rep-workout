@@ -23,7 +23,7 @@ function render() {
   window.scrollTo(0, y);
   renderTimer();
 }
-function go(t) { tab = t; location.hash = t; window.scrollTo(0, 0); render(); }
+function go(t) { closeSheet(); tab = t; location.hash = t; window.scrollTo(0, 0); render(); }
 
 // =========================================================== TODAY
 function viewToday() {
@@ -602,7 +602,7 @@ document.addEventListener('change', e => {
   r.readAsText(f);
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && state.active) wake(true); tick(); });
-window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (TABS.includes(h) && h !== tab) { tab = h; render(); } });
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (TABS.includes(h) && h !== tab) { closeSheet(); tab = h; render(); } });
 
 setInterval(tick, 250);
 render();
