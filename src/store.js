@@ -49,6 +49,9 @@ function defaults() {
     bodyweight: [clone(BODYWEIGHT.start)],
     dizzyEvents: [],
     timer: null,
+    favorites: [],
+    savedMeals: [],
+    recentFoods: [],
   };
 }
 
@@ -60,7 +63,7 @@ function migrate(s) {
   out.settings.rest = { ...d.settings.rest, ...((s.settings || {}).rest || {}) };
   if (!out.settings.increments || typeof out.settings.increments !== 'object') out.settings.increments = {};
   if (!Array.isArray(out.settings.schedule) || out.settings.schedule.length !== 7) out.settings.schedule = d.settings.schedule;
-  for (const k of ['sessions', 'bodyweight', 'dizzyEvents', 'supplements', 'quickFoods', 'injections']) if (!Array.isArray(out[k])) out[k] = d[k];
+  for (const k of ['sessions', 'bodyweight', 'dizzyEvents', 'supplements', 'quickFoods', 'injections', 'favorites', 'savedMeals', 'recentFoods']) if (!Array.isArray(out[k])) out[k] = d[k];
   if (!out.program || !Array.isArray(out.program.workouts)) out.program = d.program;
   if (!out.daily || typeof out.daily !== 'object') out.daily = {};
   // v1.1 shipped placeholder "example" supplements — swap them for the real defaults
@@ -85,9 +88,10 @@ export function resetProgram() { state.program = clone(PROGRAM); save(); }
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 export function day(date = ymd()) {
-  if (!state.daily[date]) state.daily[date] = { protein: 0, kcal: 0, waterOz: 0, sleep: null, steps: 0, dizzy: null, dizzyNote: '', cls: false };
+  if (!state.daily[date]) state.daily[date] = { protein: 0, kcal: 0, fat: 0, carbs: 0, waterOz: 0, sleep: null, steps: 0, dizzy: null, dizzyNote: '', cls: false };
   const d = state.daily[date];
   if (!Array.isArray(d.proteinLog)) d.proteinLog = d.protein ? [{ id: uid(), ts: null, g: d.protein, label: 'earlier' }] : [];
+  if (!Array.isArray(d.foodLog)) d.foodLog = [];
   if (!d.supps || typeof d.supps !== 'object') d.supps = {};
   return d;
 }

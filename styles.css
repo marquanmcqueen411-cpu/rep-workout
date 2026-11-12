@@ -274,3 +274,21 @@ input[type=range]{height:44px;accent-color:var(--accent)}
 .demo-wrap{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;overflow:hidden;margin:8px 0 10px}
 .demo-wrap iframe,.demo-frame{position:absolute;inset:0;width:100%;height:100%;border:0}
 .demo-offline{background:#1a1a20;border:1px solid var(--line);border-radius:14px;padding:28px 16px;text-align:center;font-weight:700;color:var(--muted);margin:8px 0 10px}
+
+/* food diary */
+.food-day h2{letter-spacing:-.02em}
+.macros.rem span{display:block;margin-top:2px;font-size:11px;font-weight:700}
+.meal{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.meal h3{margin:0;font-size:16px}
+.flog{list-style:none;padding:0;margin:4px 0}
+.food-entry{display:flex;align-items:center;gap:6px;min-height:56px;border-top:1px solid var(--line);padding:4px 0}
+.food-entry:first-child{border-top:0}
+.food-main{background:none;border:0;color:var(--text);font:inherit;text-align:left;padding:8px 4px;min-height:48px;cursor:pointer}
+.food-main b{display:block;font-size:15px}
+.food-main small{color:var(--muted);font-weight:600}
+.food-entry .icon{background:none;border:0;color:#4a4a52;font-size:20px;width:44px;height:44px;cursor:pointer;flex:0 0 44px}
+.food-entry .icon.on{color:var(--warn)}
+.scan-vid{width:100%;border-radius:16px;background:#000;aspect-ratio:3/4;max-height:360px;object-fit:cover;margin:8px 0}
+.food-pick li{min-height:56px}
+.row.gap{gap:8px;align-items:center;margin:8px 0}
+#foodQ{min-height:48px}

@@ -398,7 +398,143 @@ const warned = await page.evaluate(() => window.__rep.state.timer && window.__re
 assert(warned, '10-second voice warning flag set on timer');
 await page.evaluate(() => { window.__rep.state.timer = null; window.__rep.state.active = null; });
 
+
 log('ok - v1.5 features covered');
+
+// ---- v1.7 food tracker (past day, mocked network — do not touch today's protein totals)
+await page.route('**/world.openfoodfacts.org/**', async route => {
+  const url = route.request().url();
+  if (url.includes('/api/v0/product/')) {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      status: 1,
+      product: {
+        code: '0041500112345',
+        product_name: 'Chunk Light Tuna',
+        brands: 'Test Brand',
+        serving_size: '85 g',
+        nutriments: { 'energy-kcal_100g': 116, proteins_100g: 26, fat_100g: 1, carbohydrates_100g: 0 },
+      },
+    }) });
+    return;
+  }
+  await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    products: [{
+      code: '0123456789012',
+      product_name: 'Quest Protein Bar',
+      brands: 'Quest',
+      serving_size: '60 g',
+      nutriments: { 'energy-kcal_100g': 300, proteins_100g: 33, fat_100g: 12, carbohydrates_100g: 25 },
+    }],
+  }) });
+});
+await page.route('**/api.nal.usda.gov/**', async route => {
+  await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    foods: [{ fdcId: 171077, description: 'Chicken, broiler, breast, meat only, cooked, roasted', foodNutrients: [
+      { nutrientId: 1008, value: 165 }, { nutrientId: 1003, value: 31 }, { nutrientId: 1004, value: 3.6 }, { nutrientId: 1005, value: 0 },
+    ] }],
+  }) });
+});
+
+await page.click('.tabbar [data-tab=daily]');
+await page.evaluate(() => window.__rep.goDaily('2026-11-01'));
+await page.waitForSelector('.food-day');
+
+// Log breakfast chicken from built-in list
+await page.click('.meal[data-meal=breakfast] [data-act=foodSearch]');
+await page.waitForSelector('#foodQ');
+await page.click('.food-pick [data-act=foodPick][data-id=chicken-breast]');
+await page.waitForSelector('[data-act=foodLog]');
+await page.click('[data-act=foodLog]');
+await page.waitForSelector('.meal[data-meal=breakfast] .food-entry:has-text("Chicken breast")');
+
+// Search (mocked OFF + USDA)
+await page.click('.meal[data-meal=lunch] [data-act=foodSearch]');
+await page.waitForSelector('#foodQ');
+await page.fill('#foodQ', 'quest');
+await page.click('[data-act=foodDoSearch]');
+await page.waitForSelector('.food-pick >> text=Quest Protein Bar');
+assert(await page.locator('.food-pick >> text=Quest Protein Bar').count(), 'mocked OFF result appears');
+assert(await page.locator('.food-pick >> text=Chicken, broiler').count(), 'mocked USDA result appears');
+await page.waitForTimeout(2000);
+await page.evaluate(() => document.querySelector('.panel')?.scrollTo?.(0, 0));
+await page.screenshot({ path: SHOTS + '26-food-search.png' });
+await page.click('.food-pick [data-act=foodPick]:has-text("Quest Protein Bar")');
+await page.waitForSelector('[data-act=foodLog]');
+await page.click('[data-act=foodLog]');
+
+// Barcode type-in (camera is unavailable in this environment)
+await page.click('.meal[data-meal=dinner] [data-act=foodSearch]');
+await page.click('[data-act=foodScan]');
+await page.waitForSelector('#barcodeIn');
+await page.fill('#barcodeIn', '0041500112345');
+await page.click('[data-act=foodBarcodeGo]');
+await page.waitForSelector('text=Chunk Light Tuna');
+assert(await page.locator('#fGrams').count(), 'barcode lookup opens amount sheet');
+await page.waitForTimeout(2000);
+await page.screenshot({ path: SHOTS + '27-food-barcode-or-entry.png' });
+await page.click('[data-act=foodLog]');
+
+// Offline search shows Needs signal + builtin
+await ctx.setOffline(true);
+await page.click('.meal[data-meal=snacks] [data-act=foodSearch]');
+await page.fill('#foodQ', 'rice');
+await page.click('[data-act=foodDoSearch]');
+await page.waitForSelector('text=Needs signal');
+assert(await page.locator('.food-pick >> text=White rice').count(), 'builtin rice still shown offline');
+await page.click('[data-act=closeSheet]');
+await ctx.setOffline(false);
+
+// Fill a realistic cut day for the day screenshot (meals already have chicken / quest / tuna)
+await page.evaluate(() => {
+  const S = window.__rep.state;
+  const k = '2026-11-01';
+  const d = S.daily[k];
+  const add = (meal, id, qty = 1) => {
+    // already logged items stay; add extras by id if missing that meal+food
+    const foods = {
+      'eggs': { id: 'eggs', name: 'Eggs (3 large)', servingLabel: '3 large', servingGrams: 150, kcal: 210, protein: 18, fat: 15, carbs: 1 },
+      'oats': { id: 'oats', name: 'Oats, dry', servingLabel: '½ cup', servingGrams: 40, kcal: 150, protein: 5, fat: 3, carbs: 27 },
+      'rice': { id: 'rice', name: 'White rice, cooked', servingLabel: '1 cup', servingGrams: 158, kcal: 205, protein: 4, fat: 0, carbs: 45 },
+      'broccoli': { id: 'broccoli', name: 'Broccoli, cooked', servingLabel: '1 cup', servingGrams: 156, kcal: 55, protein: 4, fat: 0, carbs: 11 },
+      'salmon': { id: 'salmon', name: 'Salmon', servingLabel: '6 oz cooked', servingGrams: 170, kcal: 280, protein: 39, fat: 14, carbs: 0 },
+      'potato': { id: 'potato', name: 'Potato, baked', servingLabel: '1 medium', servingGrams: 173, kcal: 160, protein: 4, fat: 0, carbs: 37 },
+      'greek-yogurt': { id: 'greek-yogurt', name: 'Greek yogurt, nonfat', servingLabel: '1 cup', servingGrams: 170, kcal: 100, protein: 18, fat: 0, carbs: 6 },
+    };
+    const f = foods[id];
+    d.foodLog.push({ id: id + '-' + meal, ts: Date.now(), meal, foodId: id, source: 'builtin', barcode: '', qty, grams: f.servingGrams * qty, servingGrams: f.servingGrams, servingLabel: f.servingLabel, name: f.name, kcal: f.kcal * qty, protein: f.protein * qty, fat: f.fat * qty, carbs: f.carbs * qty });
+  };
+  add('breakfast', 'eggs'); add('breakfast', 'oats');
+  add('lunch', 'rice'); add('lunch', 'broccoli');
+  add('dinner', 'salmon'); add('dinner', 'potato');
+  add('snacks', 'greek-yogurt');
+  window.__rep.render();
+});
+const foodDay = await page.evaluate(() => {
+  const d = window.__rep.state.daily['2026-11-01'];
+  return window.__rep.syncedTotals(d);
+});
+assert(foodDay.n >= 8, 'full day has many food items: ' + foodDay.n);
+assert(foodDay.protein > 100, 'logged protein feeds daily total');
+// protein on this past day should not have emptied today's log
+const todayP = await page.evaluate(() => {
+  const keys = Object.keys(window.__rep.state.daily).sort();
+  const today = keys.filter(k => k !== '2026-11-01').at(-1);
+  return window.__rep.state.daily[today].protein;
+});
+assert(todayP === 188, 'food logging on a past day did not change today protein (' + todayP + ')');
+
+await page.evaluate(() => { window.scrollTo(0, 0); document.querySelector('.food-day')?.scrollIntoView({ block: 'start' }); window.scrollBy(0, -8); });
+await page.waitForTimeout(2000);
+await page.screenshot({ path: SHOTS + '25-food-day.png' });
+
+// Saved meal + copy yesterday smoke
+await page.click('[data-act=foodMeals]');
+await page.click('[data-act=foodMealSave]');
+await page.fill('#mealName', 'Cut day');
+await page.click('[data-act=foodMealSaveGo]');
+assert((await page.evaluate(() => window.__rep.state.savedMeals[0].name)) === 'Cut day', 'saved meal stored');
+
+log('ok - v1.7 food tracker');
 
 // ---- offline: service worker serves app shell
 // reload once so the freshly-installed SW controls the page (fallback to goto if the reload stalls)

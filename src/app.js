@@ -7,6 +7,8 @@ import { warmups, equipOf, EQUIP_LABEL, defaultIncrement, detectPRs, e1rm as epl
 import { bodySvg } from './body.js';
 import { lineChart, barChart } from './charts.js';
 import { parseRenpho, mergeBodyweight, leanMass } from './renpho.js';
+import { MEALS, BUILTIN_FOODS, BUILTIN_BY_ID, scaleFood, totals, remaining, syncedTotals, applySyncedTotals, proteinEntriesFromFood, rememberRecent, isFavorite, toggleFavorite, foodKey } from './foods.js';
+import { searchFoods, lookupBarcode } from './food-api.js';
 import { plateBreakdown, formatPlates, wantsPlates, barFor } from './plates.js';
 import { bwChartSeries, lossRate, projectGoal, muscleRiskFlag, movingAverage } from './fatloss.js';
 import { buildCheckIn } from './checkin.js';
@@ -372,6 +374,8 @@ function viewDaily() {
   let h = `<header class="hero"><div class="row between"><button class="icon" data-act="dday" data-n="-1">‹</button>
     <div class="center"><div class="eyebrow">${isToday ? 'Today' : WD_LONG[dt.getDay()]}</div><h1>${dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</h1></div>
     <button class="icon" data-act="dday" data-n="1" ${isToday ? 'disabled' : ''}>›</button></div></header>`;
+  syncDay(d);
+  h += foodDayCard(k, d, t);
   h += proteinHero(k, d, t);
   h += `<section class="card"><div class="row between"><h3>Protein · last 7 days</h3><span class="muted sm">goal ${t.protein} g</span></div>${protein7(k)}</section>`;
   h += suppCard(k, d);
@@ -379,8 +383,6 @@ function viewDaily() {
   h += `<section class="card targets"><div class="eyebrow accent">Coach Dre targets</div><div class="macros">
     <div><b>${fmtNum(t.kcal)}</b><small>kcal</small></div><div><b>${t.protein}g</b><small>protein</small></div><div><b>~${t.fat}g</b><small>fat</small></div><div><b>~${t.carbs}g</b><small>carbs</small></div></div>
     <p class="muted sm">Protein first at every meal to hold onto muscle. If appetite is low on tirzepatide, use shakes / Greek yogurt and smaller, more frequent meals.</p></section>`;
-  h += `<section class="card"><div class="row between"><h3>Calories <small class="muted">(optional)</small></h3><span class="muted">${fmtNum(d.kcal)} / ${fmtNum(t.kcal)}</span></div>${bar(d.kcal, t.kcal)}
-    <div class="quick"><button class="btn" data-act="addK" data-n="100">+100</button><button class="btn" data-act="addK" data-n="250">+250</button><button class="btn" data-act="addK" data-n="500">+500</button><input class="inp sm" type="number" inputmode="numeric" data-change="setK" value="${d.kcal}" aria-label="Calories"></div></section>`;
   h += `<section class="card"><div class="row between"><h3>Water</h3><span class="muted">${d.waterOz} / ${t.waterOz} oz · ${Math.round(d.waterOz / 8)} glasses</span></div>${bar(d.waterOz, t.waterOz, '#3aa0ff')}
     <div class="quick"><button class="btn" data-act="addW" data-n="8">+8 oz</button><button class="btn" data-act="addW" data-n="16">+16 oz</button><button class="btn" data-act="addW" data-n="24">+24 oz</button><button class="btn ghost sm" data-act="addW" data-n="-8">−8</button></div></section>`;
   h += `<section class="card"><div class="row between"><h3>Steps</h3><span class="muted">${sch.type === 'steps' ? `Steps day · ${fmtNum(t.stepsMin)}–${fmtNum(t.stepsMax)}` : `goal ${fmtNum(t.steps)}`}</span></div>${bar(d.steps, t.steps, '#30d158')}
@@ -395,6 +397,223 @@ function viewDaily() {
 
 function fmtTime(ts) { return ts ? new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '—'; }
 function shortDate(dt) { return dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
+
+
+function syncDay(d) {
+  if (!d) return;
+  if (!Array.isArray(d.foodLog)) d.foodLog = [];
+  if (!Array.isArray(d.proteinLog)) d.proteinLog = [];
+  if (!d.foodLog.length) {
+    const ids = new Set();
+    for (const e of d.proteinLog) {
+      if (!e?.id || ids.has(e.id) || e.fromFood || !(+e.g > 0)) continue;
+      d.foodLog.push({
+        id: e.id, ts: e.ts, meal: 'snacks', name: e.label || 'Protein',
+        qty: 1, grams: 0, servingGrams: 0, servingLabel: `+${e.g} g`,
+        kcal: Math.round((+e.g || 0) * 4), protein: +e.g || 0, fat: 0, carbs: 0,
+        source: 'quick',
+      });
+      ids.add(e.id);
+    }
+    const usedK = d.foodLog.reduce((acc, e) => acc + (+e.kcal || 0), 0);
+    const leftoverK = Math.max(0, Math.round((+d.kcal || 0) - usedK));
+    if (leftoverK > 0) {
+      d.foodLog.push({
+        id: uid(), ts: null, meal: 'snacks', name: 'Logged calories',
+        qty: 1, grams: 0, servingGrams: 0, servingLabel: `+${leftoverK} kcal`,
+        kcal: leftoverK, protein: 0, fat: 0, carbs: 0, source: 'quick',
+      });
+    }
+  }
+  d.proteinLog = proteinEntriesFromFood(d);
+  applySyncedTotals(d);
+}
+function addFoodEntry(d, entry) {
+  if (!Array.isArray(d.foodLog)) d.foodLog = [];
+  d.foodLog.push(entry);
+  if (entry.source !== 'quick') state.recentFoods = rememberRecent(state.recentFoods, entry);
+  syncDay(d);
+}
+function fmtQty(e) {
+  if (e.grams && e.servingGrams && Math.abs(e.grams - e.servingGrams) > 0.5) return `${e.grams} g`;
+  if (e.qty && e.qty !== 1) return `${e.qty} × ${e.servingLabel || 'serving'}`;
+  return e.servingLabel || `${e.grams || ''} g`;
+}
+function foodDayCard(k, d, t) {
+  const tot = syncedTotals(d);
+  const rem = remaining(tot, t);
+  const cell = (lbl, have, goal, left, unit) => `<div><small>${lbl}</small><b>${have}${unit}</b><span class="muted sm ${left < 0 ? 'accent' : ''}">${left < 0 ? `${Math.abs(Math.round(left))}${unit} over` : `${Math.round(left)}${unit} left`}</span></div>`;
+  let h = `<section class="card food-day"><div class="row between"><div><div class="eyebrow accent">Food</div><h2>${fmtNum(tot.kcal)} / ${fmtNum(t.kcal)} kcal</h2></div><span class="chip">${tot.n} item${tot.n === 1 ? '' : 's'}</span></div>
+    <div class="macros rem">${cell('Calories', tot.kcal, t.kcal, rem.kcal, '')}${cell('Protein', Math.round(tot.protein), t.protein, rem.protein, ' g')}${cell('Fat', Math.round(tot.fat), t.fat, rem.fat, ' g')}${cell('Carbs', Math.round(tot.carbs), t.carbs, rem.carbs, ' g')}</div>
+    <div class="quick"><button class="btn" data-act="foodCopyY">Copy yesterday</button><button class="btn" data-act="foodQuick">Quick add</button><button class="btn ghost" data-act="foodMeals">Saved meals</button></div>
+    <div class="quick"><button class="btn sm" data-act="addK" data-n="100">+100</button><button class="btn sm" data-act="addK" data-n="250">+250</button><button class="btn sm" data-act="addK" data-n="500">+500</button></div>`;
+  for (const [id, label] of MEALS) {
+    const items = (d.foodLog || []).filter(e => e.meal === id);
+    const mt = totals(items);
+    h += `<div class="meal" data-meal="${id}"><div class="row between"><h3>${label}</h3><small class="muted">${items.length ? `${mt.kcal} kcal · P ${Math.round(mt.protein)}` : ''}</small></div>
+      <ul class="flog">${items.map(foodRow).join('')}</ul>
+      <button class="btn ghost wide" data-act="foodSearch" data-meal="${id}">+ Add</button></div>`;
+  }
+  return h + '</section>';
+}
+function foodRow(e) {
+  const fav = isFavorite(state.favorites, e);
+  return `<li class="food-entry swipe" data-swipe="delFood" data-id="${e.id}"><button class="grow food-main" data-act="foodEdit" data-id="${e.id}"><b>${esc(e.name)}</b><small>${fmtQty(e)} · ${e.kcal} kcal · P ${Math.round(e.protein)}</small></button>
+    <button class="icon ${fav ? 'on' : ''}" data-act="foodFav" data-id="${e.id}" aria-label="${fav ? 'Unfavorite' : 'Favorite'}">★</button>
+    <button class="del" data-act="delFood" data-id="${e.id}" data-act-alias="delP" aria-label="Delete entry">✕</button></li>`;
+}
+
+function foodItem(f, meal) {
+  const id = f.id || f.foodId || '';
+  return `<li data-act="foodPick" data-id="${esc(id)}" data-meal="${meal}" data-src="${esc(f.source || 'builtin')}"><b>${esc(f.name)}</b><small>${esc(f.servingLabel || '')} · ${Math.round(f.kcal)} kcal · P ${Math.round(f.protein)}</small></li>`;
+}
+
+async function foodSearchSheet(meal, { q = '', results = null, needsSignal = false, searching = false } = {}) {
+  ui.food = { ...(ui.food || {}), meal, q, results, needsSignal, searching };
+  const rec = state.recentFoods || [];
+  const fav = state.favorites || [];
+  const builtinBlock = (results && q) ? [] : null;
+  let list = '';
+  if (searching) list = '<p class="muted">Searching…</p>';
+  else if (results) {
+    if (needsSignal) list += `<div class="banner warn">Needs signal — showing foods on this phone.</div>`;
+    list += results.length ? `<ul class="picker food-pick">${results.map(f => foodItem(f, meal)).join('')}</ul>` : '<p class="muted">No matches. Try a shorter name, or log it manually.</p>';
+  } else {
+    if (fav.length) list += `<h3>Favorites</h3><ul class="picker food-pick">${fav.map(f => foodItem(f, meal)).join('')}</ul>`;
+    if (rec.length) list += `<h3>Recents</h3><ul class="picker food-pick">${rec.map(f => foodItem(f, meal)).join('')}</ul>`;
+    list += `<h3>Common foods</h3><ul class="picker food-pick">${BUILTIN_FOODS.map(f => foodItem(f, meal)).join('')}</ul>`;
+  }
+  const pool = [...(results || []), ...(state.recentFoods || []), ...(state.favorites || []), ...BUILTIN_FOODS];
+  ui.foodIndex = Object.fromEntries(pool.map(f => [f.id || f.foodId, f]));
+  const mealLabel = (MEALS.find(([id]) => id === meal) || [meal, 'Meal'])[1];
+  sheet(`<div class="eyebrow accent">Add food</div><h2>${esc(mealLabel)}</h2>
+    <div class="row gap"><input id="foodQ" class="inp grow" type="search" placeholder="Search foods" value="${esc(q)}" aria-label="Search foods" enterkeyhint="search">
+      <button class="btn primary" data-act="foodDoSearch">Search</button></div>
+    <div class="quick"><button class="btn" data-act="foodScan" data-meal="${meal}">Scan barcode</button><button class="btn ghost" data-act="foodManual" data-meal="${meal}">Manual entry</button></div>
+    ${list}
+    <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  const inp = $('#foodQ');
+  if (inp) {
+    inp.focus();
+    inp.setSelectionRange?.(q.length, q.length);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); actions.foodDoSearch(); } });
+  }
+}
+
+function foodPickFromUi(id, src) {
+  const pool = [...(ui.food?.results || []), ...(state.recentFoods || []), ...(state.favorites || [])];
+  let f = pool.find(x => (x.id || x.foodId) === id);
+  if (!f) f = BUILTIN_BY_ID[id];
+  return f;
+}
+
+function foodEntrySheet(meal, food, { existing = null } = {}) {
+  const base = existing
+    ? { ...food, servingGrams: existing.servingGrams, servingLabel: existing.servingLabel, kcal: (existing.kcal / (existing.grams || 1)) * (existing.servingGrams || 100), protein: (existing.protein / (existing.grams || 1)) * (existing.servingGrams || 100), fat: (existing.fat / (existing.grams || 1)) * (existing.servingGrams || 100), carbs: (existing.carbs / (existing.grams || 1)) * (existing.servingGrams || 100), name: existing.name, foodId: existing.foodId, source: existing.source, barcode: existing.barcode, id: food?.id }
+    : food;
+  const grams0 = existing ? existing.grams : (base.servingGrams || 100);
+  const qty0 = existing ? existing.qty : 1;
+  ui.foodPick = { meal, food: base, existing };
+  const scaled = () => scaleFood(base, { grams: parseFloat($('#fGrams')?.value) || grams0 });
+  sheet(`<div class="eyebrow accent">${existing ? 'Edit food' : 'Log food'}</div><h2>${esc(base.name)}</h2>
+    <p class="muted sm">${esc(base.servingLabel || '')}${base.barcode ? ` · ${esc(base.barcode)}` : ''}${base.source && base.source !== 'builtin' ? ` · ${esc(base.source === 'off' ? 'Open Food Facts' : base.source === 'usda' ? 'USDA' : base.source)}` : ''}</p>
+    <div class="frow"><label>Meal</label><select id="fMeal" class="inp" aria-label="Meal">${MEALS.map(([id, l]) => `<option value="${id}" ${id === meal ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="frow"><label>Servings</label><input id="fQty" class="inp num" type="number" inputmode="decimal" step="any" min="0" value="${qty0}" aria-label="Servings"></div>
+    <div class="frow"><label>Grams</label><input id="fGrams" class="inp num" type="number" inputmode="decimal" step="any" min="0" value="${grams0}" aria-label="Grams"><span class="unit">g</span></div>
+    <div class="macros rem" id="fPreview"></div>
+    <button class="btn primary xl" data-act="foodLog">${existing ? 'Save' : 'Log food'}</button>
+    <button class="btn ghost wide" data-act="foodFavPick">${isFavorite(state.favorites, base) ? 'Remove favorite' : 'Save favorite'}</button>
+    ${existing ? '<button class="btn danger wide" data-act="delFood" data-id="' + existing.id + '">Delete</button>' : ''}
+    <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
+  const prev = () => {
+    const el = $('#fPreview'); if (!el) return;
+    const s = scaleFood(base, { grams: parseFloat($('#fGrams')?.value) || 0 });
+    el.innerHTML = `<div><small>kcal</small><b>${s.kcal}</b></div><div><small>P</small><b>${s.protein} g</b></div><div><small>F</small><b>${s.fat} g</b></div><div><small>C</small><b>${s.carbs} g</b></div>`;
+  };
+  const syncQty = from => {
+    const sg = base.servingGrams || 100;
+    if (from === 'qty') { const q = parseFloat($('#fQty').value); if (q >= 0) $('#fGrams').value = +(q * sg).toFixed(1); }
+    else { const g = parseFloat($('#fGrams').value); if (g >= 0) $('#fQty').value = +(g / sg).toFixed(2); }
+    prev();
+  };
+  $('#fQty')?.addEventListener('input', () => syncQty('qty'));
+  $('#fGrams')?.addEventListener('input', () => syncQty('grams'));
+  prev();
+}
+
+function foodQuickSheet() {
+  sheet(`<div class="eyebrow accent">Quick add</div><h2>Calories &amp; macros</h2>
+    <p class="muted sm">Log a chunk without a food name. Lands in Snacks.</p>
+    <div class="frow"><label>Calories</label><input id="qKcal" class="inp num" type="number" inputmode="numeric" value="" placeholder="0" aria-label="Calories"></div>
+    <div class="frow"><label>Protein (g)</label><input id="qP" class="inp num" type="number" inputmode="decimal" value="" placeholder="0" aria-label="Protein"></div>
+    <div class="frow"><label>Fat (g)</label><input id="qF" class="inp num" type="number" inputmode="decimal" value="" placeholder="0" aria-label="Fat"></div>
+    <div class="frow"><label>Carbs (g)</label><input id="qC" class="inp num" type="number" inputmode="decimal" value="" placeholder="0" aria-label="Carbs"></div>
+    <input id="qName" class="inp" type="text" placeholder="Label (optional)" aria-label="Label" style="margin-top:8px">
+    <button class="btn primary xl" data-act="foodQuickLog">Add</button>
+    <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
+}
+
+function foodManualSheet(meal) {
+  sheet(`<div class="eyebrow accent">Manual entry</div><h2>Log a food</h2>
+    <input id="mName" class="inp" type="text" placeholder="Food name" aria-label="Food name">
+    <div class="frow"><label>Meal</label><select id="mMeal" class="inp">${MEALS.map(([id, l]) => `<option value="${id}" ${id === meal ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="frow"><label>Grams</label><input id="mGrams" class="inp num" type="number" inputmode="decimal" value="100" aria-label="Grams"><span class="unit">g</span></div>
+    <div class="frow"><label>Calories</label><input id="mKcal" class="inp num" type="number" inputmode="numeric" aria-label="Calories"></div>
+    <div class="frow"><label>Protein (g)</label><input id="mP" class="inp num" type="number" inputmode="decimal" aria-label="Protein"></div>
+    <div class="frow"><label>Fat (g)</label><input id="mF" class="inp num" type="number" inputmode="decimal" aria-label="Fat"></div>
+    <div class="frow"><label>Carbs (g)</label><input id="mC" class="inp num" type="number" inputmode="decimal" aria-label="Carbs"></div>
+    <button class="btn primary xl" data-act="foodManualLog">Log food</button>
+    <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
+}
+
+function foodMealsSheet() {
+  const meals = state.savedMeals || [];
+  sheet(`<div class="eyebrow accent">Saved meals</div><h2>Reuse a meal</h2>
+    ${meals.length ? `<ul class="picker">${meals.map(m => `<li><div class="grow" data-act="foodMealApply" data-id="${m.id}"><b>${esc(m.name)}</b><small>${m.items.length} foods · ${m.items.reduce((a, i) => a + (+i.kcal || 0), 0)} kcal</small></div><button class="del" data-act="foodMealDel" data-id="${m.id}" aria-label="Delete meal">✕</button></li>`).join('')}</ul>` : '<p class="muted">No saved meals yet.</p>'}
+    <p class="muted sm">Save today’s foods as a meal from the button below (uses what’s already logged today).</p>
+    <button class="btn primary wide" data-act="foodMealSave">Save today’s foods as a meal</button>
+    <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+}
+
+async function foodScanSheet(meal) {
+  ui.food = { ...(ui.food || {}), meal };
+  const can = typeof BarcodeDetector !== 'undefined';
+  sheet(`<div class="eyebrow accent">Barcode</div><h2>Scan or type</h2>
+    ${can ? `<video id="scanVid" class="scan-vid" playsinline autoplay muted></video><p class="muted sm">Point the camera at the barcode.</p>` : `<p class="muted sm">This browser can’t scan. Type the barcode below.</p>`}
+    <div class="row gap"><input id="barcodeIn" class="inp grow" type="text" inputmode="numeric" placeholder="Type the barcode" aria-label="Barcode">
+      <button class="btn primary" data-act="foodBarcodeGo">Look up</button></div>
+    <p class="muted sm" id="scanMsg"></p>
+    <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  if (!can) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const vid = $('#scanVid');
+    if (!vid) { stream.getTracks().forEach(t => t.stop()); return; }
+    vid.srcObject = stream;
+    await vid.play();
+    const det = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] });
+    ui.scan = { stream, running: true };
+    const tick = async () => {
+      if (!ui.scan?.running) return;
+      try {
+        const codes = await det.detect(vid);
+        if (codes && codes[0]?.rawValue) { $('#barcodeIn').value = codes[0].rawValue; await actions.foodBarcodeGo(); return; }
+      } catch (e) { }
+      ui.scan.raf = requestAnimationFrame(tick);
+    };
+    ui.scan.raf = requestAnimationFrame(tick);
+  } catch (e) {
+    const msg = $('#scanMsg'); if (msg) msg.textContent = 'Camera unavailable — type the barcode instead.';
+  }
+}
+
+function stopScan() {
+  if (!ui.scan) return;
+  ui.scan.running = false;
+  if (ui.scan.raf) cancelAnimationFrame(ui.scan.raf);
+  ui.scan.stream?.getTracks().forEach(t => t.stop());
+  ui.scan = null;
+}
 
 function proteinHero(k, d, t) {
   const left = Math.max(0, t.protein - d.protein);
@@ -529,7 +748,7 @@ function viewSettings() {
     <button class="btn danger wide" data-act="resetAll">Erase all data</button>
     <p class="muted sm">${doneSessions().length} sessions · ${state.bodyweight.length} weigh-ins · ${state.dizzyEvents.length} dizziness events · ${state.injections.length} injections · ${state.supplements.length} supplements</p></section>`;
   h += `<section class="card"><h3>Safety</h3><p class="muted sm">Don't lift fasted. Eat carbs + protein 1–2 h before, drink water/electrolytes. If dizzy or lightheaded: stop, sit or lie down, sip fluids, have some fast carbs. Fainting, chest pain, or confusion → call 911. Tell your prescriber about repeated dizziness.</p>
-    <p class="muted sm">Rep v1.6.0 · personal use</p></section>`;
+    <p class="muted sm">Rep v1.7.0 · personal use</p></section>`;
   return h;
 }
 
@@ -540,7 +759,7 @@ function sheet(html, { lock = false } = {}) {
   m.classList.add('open');
   document.querySelectorAll('main, .tabbar, #timer').forEach(e => { e.inert = true; });
 }
-function closeSheet() { $('#sheet').classList.remove('open'); $('#sheet').innerHTML = ''; document.querySelectorAll('main, .tabbar, #timer').forEach(e => { e.inert = false; }); }
+function closeSheet() { stopScan(); $('#sheet').classList.remove('open'); $('#sheet').innerHTML = ''; document.querySelectorAll('main, .tabbar, #timer').forEach(e => { e.inert = false; }); }
 
 function infoSheet(id) {
   const ex = exercise(id);
@@ -787,13 +1006,152 @@ const actions = {
   addFood: el => { const f = state.quickFoods.find(x => x.id === el.dataset.id); if (f) addProtein(f.g, f.name); },
   addCustomP: () => { const g = parseFloat($('#pG').value); if (!(g > 0)) return toast('Enter grams'); addProtein(g, $('#pLabel').value.trim()); },
   delP: el => delProtein(el.dataset.id),
+  delFood: el => delProtein(el.dataset.id),
+  foodSearch: el => { foodSearchSheet(el.dataset.meal || 'snacks'); },
+  foodDoSearch: async () => {
+    const q = $('#foodQ')?.value || '';
+    const meal = ui.food?.meal || 'snacks';
+    await foodSearchSheet(meal, { q, searching: true });
+    const r = await searchFoods(q, { online: navigator.onLine });
+    await foodSearchSheet(meal, { q, results: r.results, needsSignal: r.needsSignal });
+  },
+  foodPick: el => {
+    const f = (ui.foodIndex && ui.foodIndex[el.dataset.id]) || foodPickFromUi(el.dataset.id);
+    if (!f) return toast('Food not found');
+    foodEntrySheet(el.dataset.meal || ui.food?.meal || 'snacks', f);
+  },
+  foodEdit: el => {
+    const d = day(ui.dailyDate);
+    const e = (d.foodLog || []).find(x => x.id === el.dataset.id);
+    if (!e) return;
+    const base = {
+      name: e.name, id: e.foodId || e.id, foodId: e.foodId, source: e.source, barcode: e.barcode,
+      servingLabel: e.servingLabel, servingGrams: e.servingGrams || e.grams || 100,
+      kcal: e.servingGrams && e.grams ? e.kcal / e.grams * e.servingGrams : e.kcal,
+      protein: e.servingGrams && e.grams ? e.protein / e.grams * e.servingGrams : e.protein,
+      fat: e.servingGrams && e.grams ? e.fat / e.grams * e.servingGrams : e.fat,
+      carbs: e.servingGrams && e.grams ? e.carbs / e.grams * e.servingGrams : e.carbs,
+    };
+    foodEntrySheet(e.meal, base, { existing: e });
+  },
+  foodLog: () => {
+    const pick = ui.foodPick; if (!pick) return;
+    const meal = $('#fMeal')?.value || pick.meal;
+    const grams = parseFloat($('#fGrams')?.value);
+    if (!Number.isFinite(grams) || grams < 0) return toast('Enter an amount');
+    const s = scaleFood(pick.food, { grams });
+    const d = day(ui.dailyDate);
+    if (pick.existing) {
+      Object.assign(pick.existing, s, { meal, id: pick.existing.id, ts: pick.existing.ts, fromSupp: pick.existing.fromSupp, source: pick.existing.source || s.source });
+      if (s.source !== 'quick') state.recentFoods = rememberRecent(state.recentFoods, pick.existing);
+      syncDay(d);
+    } else {
+      addFoodEntry(d, { id: uid(), ts: nowFor(ui.dailyDate), meal, ...s });
+    }
+    closeSheet(); save(); render(); toast(pick.existing ? 'Saved' : 'Logged');
+  },
+  foodFav: el => {
+    const d = day(ui.dailyDate);
+    const e = (d.foodLog || []).find(x => x.id === el.dataset.id) || (ui.foodIndex && ui.foodIndex[el.dataset.id]);
+    if (!e) return;
+    state.favorites = toggleFavorite(state.favorites, e);
+    save(); render();
+    toast(isFavorite(state.favorites, e) ? 'Favorited' : 'Removed favorite');
+  },
+  foodFavPick: () => {
+    if (!ui.foodPick) return;
+    state.favorites = toggleFavorite(state.favorites, ui.foodPick.food);
+    save();
+    foodEntrySheet(ui.foodPick.meal, ui.foodPick.food, { existing: ui.foodPick.existing });
+  },
+  foodManual: el => foodManualSheet(el.dataset.meal || ui.food?.meal || 'snacks'),
+  foodManualLog: () => {
+    const name = $('#mName')?.value.trim();
+    if (!name) return toast('Enter a name');
+    const grams = parseFloat($('#mGrams')?.value) || 100;
+    const kcal = parseFloat($('#mKcal')?.value) || 0;
+    const protein = parseFloat($('#mP')?.value) || 0;
+    const fat = parseFloat($('#mF')?.value) || 0;
+    const carbs = parseFloat($('#mC')?.value) || 0;
+    const meal = $('#mMeal')?.value || 'snacks';
+    const d = day(ui.dailyDate);
+    addFoodEntry(d, { id: uid(), ts: nowFor(ui.dailyDate), meal, name, foodId: '', source: 'manual', barcode: '', servingLabel: grams + ' g', servingGrams: grams, grams, qty: 1, kcal, protein, fat, carbs });
+    closeSheet(); save(); render(); toast('Logged');
+  },
+  foodQuick: () => foodQuickSheet(),
+  foodQuickLog: () => {
+    const kcal = parseFloat($('#qKcal')?.value) || 0;
+    const protein = parseFloat($('#qP')?.value) || 0;
+    const fat = parseFloat($('#qF')?.value) || 0;
+    const carbs = parseFloat($('#qC')?.value) || 0;
+    if (!(kcal || protein || fat || carbs)) return toast('Enter calories or macros');
+    const name = ($('#qName')?.value.trim()) || 'Quick add';
+    const d = day(ui.dailyDate);
+    addFoodEntry(d, { id: uid(), ts: nowFor(ui.dailyDate), meal: 'snacks', name, foodId: '', source: 'quick', barcode: '', servingLabel: 'quick add', servingGrams: 0, grams: 0, qty: 1, kcal, protein, fat, carbs });
+    closeSheet(); save(); render(); toast('Logged');
+  },
+  foodCopyY: () => {
+    const y = ymd(addDays(parseYmd(ui.dailyDate), -1));
+    const src = state.daily[y];
+    if (!src?.foodLog?.length) return toast('Nothing logged yesterday');
+    const d = day(ui.dailyDate);
+    for (const e of src.foodLog) {
+      const { fromSupp, ...rest } = e;
+      addFoodEntry(d, { ...rest, id: uid(), ts: nowFor(ui.dailyDate) });
+    }
+    save(); render(); toast("Copied yesterday's foods");
+  },
+  foodMeals: () => foodMealsSheet(),
+  foodMealSave: () => {
+    const n = (day(ui.dailyDate).foodLog || []).length;
+    if (!n) return toast('Log some foods first');
+    sheet(`<div class="eyebrow accent">Save meal</div><h2>Name this meal</h2>
+      <input id="mealName" class="inp" type="text" value="Saved meal" aria-label="Meal name">
+      <p class="muted sm">${n} food${n === 1 ? '' : 's'} from today will be saved.</p>
+      <button class="btn primary xl" data-act="foodMealSaveGo">Save meal</button>
+      <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
+  },
+  foodMealSaveGo: () => {
+    const name = ($('#mealName')?.value.trim()) || 'Saved meal';
+    const items = (day(ui.dailyDate).foodLog || []).map(e => { const { id, fromSupp, ts, ...rest } = e; return rest; });
+    if (!items.length) return toast('Log some foods first');
+    state.savedMeals = [{ id: uid(), name, items }, ...(state.savedMeals || [])].slice(0, 20);
+    save(); closeSheet(); toast('Meal saved');
+  },
+  foodMealApply: el => {
+    const m = (state.savedMeals || []).find(x => x.id === el.dataset.id);
+    if (!m) return;
+    const d = day(ui.dailyDate);
+    for (const e of m.items) addFoodEntry(d, { ...e, id: uid(), ts: nowFor(ui.dailyDate) });
+    closeSheet(); save(); render(); toast(`Added ${m.name}`);
+  },
+  foodMealDel: el => {
+    state.savedMeals = (state.savedMeals || []).filter(m => m.id !== el.dataset.id);
+    save(); foodMealsSheet();
+  },
+  foodScan: el => { foodScanSheet(el.dataset.meal || ui.food?.meal || 'snacks'); },
+  foodBarcodeGo: async () => {
+    const code = $('#barcodeIn')?.value || '';
+    const meal = ui.food?.meal || 'snacks';
+    const msg = $('#scanMsg');
+    if (!navigator.onLine) { if (msg) msg.textContent = 'Needs signal'; return; }
+    if (msg) msg.textContent = 'Looking up…';
+    try {
+      stopScan();
+      const food = await lookupBarcode(code);
+      closeSheet();
+      foodEntrySheet(meal, food);
+    } catch (err) {
+      if (msg) msg.textContent = (err && err.message ? err.message : 'Lookup failed') + ' — try manual entry.';
+    }
+  },
   supp: el => {
     const d = day(ui.dailyDate); const id = el.dataset.id; const x = state.supplements.find(y => y.id === id);
     d.suppProtein = d.suppProtein || {};
-    if (d.supps[id]) { // uncheck: also remove the protein entry it added
+    if (d.supps[id]) { // uncheck: also remove the linked food / protein entry (once)
       delete d.supps[id];
-      if (d.suppProtein[id]) { d.proteinLog = d.proteinLog.filter(e => e.id !== d.suppProtein[id]); delete d.suppProtein[id]; recalcProtein(d); }
-      save(); render(); return;
+      if (d.suppProtein[id]) { delProtein(d.suppProtein[id], { toastOff: true }); return; }
+      syncDay(d); save(); render(); return;
     }
     d.supps[id] = nowFor(ui.dailyDate); save(); render();
     if (x && x.proteinG) sheet(`<div class="eyebrow accent">${esc(x.name)} ✓</div><h2>Add to protein tracker?</h2>
@@ -803,8 +1161,14 @@ const actions = {
   suppAddP: el => {
     const id = el.dataset.id; const x = state.supplements.find(y => y.id === id); const g = parseFloat($('#spG').value);
     closeSheet(); if (!(g > 0)) return;
-    const d = day(ui.dailyDate); const e = { id: uid(), ts: d.supps[id] || nowFor(ui.dailyDate), g, label: x ? x.name : 'Shake' };
-    d.proteinLog.push(e); d.suppProtein = d.suppProtein || {}; d.suppProtein[id] = e.id; recalcProtein(d); save(); render(); toast(`+${g} g protein`);
+    const d = day(ui.dailyDate);
+    const shake = BUILTIN_BY_ID['protein-shake'];
+    const eid = uid();
+    const qty = shake && shake.protein ? g / shake.protein : 1;
+    const s = shake ? scaleFood(shake, { qty }) : { name: x ? x.name : 'Shake', kcal: Math.round(g * 4), protein: g, fat: 0, carbs: 0, qty: 1, grams: 0, servingGrams: 0, servingLabel: '1 shake', foodId: 'protein-shake', source: 'builtin' };
+    addFoodEntry(d, { id: eid, ts: d.supps[id] || nowFor(ui.dailyDate), meal: 'snacks', ...s, name: x ? x.name : s.name, fromSupp: id });
+    d.suppProtein = d.suppProtein || {}; d.suppProtein[id] = eid;
+    save(); render(); toast(`+${g} g protein`);
   },
   suppInj: () => {
     const k = ui.dailyDate; const inj = injLine(k);
@@ -825,7 +1189,11 @@ const actions = {
     save(); render(); toast('Injection logged');
   },
   delInj: el => { if (confirm('Delete this injection log?')) { state.injections = state.injections.filter(i => i.id !== el.dataset.id); save(); render(); } },
-  addK: el => { const d = day(ui.dailyDate); d.kcal = Math.max(0, d.kcal + +el.dataset.n); save(); render(); },
+  addK: el => {
+    const n = +el.dataset.n; const d = day(ui.dailyDate);
+    addFoodEntry(d, { id: uid(), ts: nowFor(ui.dailyDate), meal: 'snacks', name: 'Quick calories', qty: 1, grams: 0, servingGrams: 0, servingLabel: `+${n} kcal`, kcal: n, protein: 0, fat: 0, carbs: 0, source: 'quick' });
+    save(); render();
+  },
   addW: el => { const d = day(ui.dailyDate); d.waterOz = Math.max(0, d.waterOz + +el.dataset.n); save(); render(); },
   sleep: el => { const d = day(ui.dailyDate); d.sleep = Math.max(0, Math.min(14, (d.sleep ?? 7) + (d.sleep == null ? 0 : +el.dataset.n))); save(); render(); },
   dz: el => { const d = day(ui.dailyDate); d.dizzy = el.dataset.v === 'yes'; if (d.dizzy) state.dizzyEvents.push({ ts: new Date().toISOString(), sessionId: null, note: 'daily log' }); save(); render(); },
@@ -882,10 +1250,25 @@ const actions = {
 
 function nowFor(k) { return k === ymd() ? new Date().toISOString() : new Date(parseYmd(k).getTime() + 12 * 3600000).toISOString(); }
 function addProtein(g, label) {
-  const d = day(ui.dailyDate); d.proteinLog.push({ id: uid(), ts: nowFor(ui.dailyDate), g, label }); recalcProtein(d); save(); render();
-  toast(`+${g} g${label ? ' · ' + label : ''}`);
+  const d = day(ui.dailyDate);
+  const grams = Math.round(+g);
+  if (!(grams > 0)) return;
+  addFoodEntry(d, {
+    id: uid(), ts: nowFor(ui.dailyDate), meal: 'snacks', name: label || 'Protein',
+    qty: 1, grams: 0, servingGrams: 0, servingLabel: `+${grams} g`,
+    kcal: grams * 4, protein: grams, fat: 0, carbs: 0, source: 'quick',
+  });
+  save(); render();
+  toast(`+${grams} g${label ? ' · ' + label : ''}`);
 }
-function delProtein(id) { const d = day(ui.dailyDate); d.proteinLog = d.proteinLog.filter(e => e.id !== id); recalcProtein(d); save(); render(); toast('Entry deleted'); }
+function delProtein(id, { toastOff = false } = {}) {
+  const d = day(ui.dailyDate);
+  d.foodLog = (d.foodLog || []).filter(e => e.id !== id);
+  d.proteinLog = (d.proteinLog || []).filter(e => e.id !== id);
+  if (d.suppProtein) for (const [k, v] of Object.entries(d.suppProtein)) if (v === id) delete d.suppProtein[k];
+  syncDay(d); save(); render();
+  if (!toastOff) toast('Entry deleted');
+}
 
 function addBw(date, lb) {
   state.bodyweight = state.bodyweight.filter(b => b.date !== date); state.bodyweight.push({ date, lb });
@@ -907,7 +1290,7 @@ const changes = {
   injDay: el => { state.settings.injectionDay = +el.value; save(); toast('Injection day saved'); },
   injWin: el => { state.settings.injectionWindowDays = Math.max(1, Math.min(4, +el.value || 2)); save(); },
   injDose: el => { state.settings.injectionDose = el.value; save(); },
-  setK: el => { day(ui.dailyDate).kcal = Math.max(0, +el.value || 0); save(); render(); },
+  setK: el => { /* kcal is derived from the food log */ },
   setSteps: el => { day(ui.dailyDate).steps = Math.max(0, +el.value || 0); save(); render(); },
   setSleep: el => { day(ui.dailyDate).sleep = el.value === '' ? null : +el.value; save(); render(); },
   dzNote: el => { day(ui.dailyDate).dizzyNote = el.value; save(); },
@@ -1040,4 +1423,5 @@ window.__rep = {
   buildCheckIn, plateBreakdown, formatPlates, wantsPlates, barFor,
   lossRate, projectGoal, muscleRiskFlag, movingAverage, needsBackupReminder,
   swapSuggestion, shareOrDownloadBackup, embedUrl, watchUrl, demoUrl,
+  searchFoods, lookupBarcode, syncedTotals, scaleFood, goDaily: k => { ui.dailyDate = k; tab = 'daily'; location.hash = 'daily'; render(); },
 };

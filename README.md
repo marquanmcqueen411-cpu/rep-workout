@@ -1,4 +1,4 @@
-# Rep — Boss's workout app (v1.6.0)
+# Rep — Boss's workout app (v1.7.0)
 
 Personal, mobile-first PWA (not a Fernholt product). Plain static site: vanilla JS ES modules, no framework, no backend, no accounts. All data stays on the phone (localStorage) with JSON Export/Import in Settings.
 
@@ -26,13 +26,14 @@ In-app edits (Settings → Schedule / Program / Targets) are stored on the devic
 - **Rest timer**: auto-starts after each set (lift 1: 150 s, adjustable 2–3 min; others 90 s), ±15 s, skip, vibration + beep, survives reload.
 - **Recovery map**: front/back SVG body, colored by hours since each muscle was trained (72 h compounds, 48 h isolation/secondary) + readiness of the next workout.
 - **Progress**: bodyweight chart with goal line (seeded 255 lb on 2026-10-23, goal 200), est. 1RM (Epley) / top-set chart per exercise, calendar (lifts, classes, dizzy days), session history.
-- **Daily**: Coach Dre targets (1,800 kcal / 210 g P / ~55 g F / ~125 g C), protein quick-add (+10/+25/+40), optional kcal, water, steps (7,000 default; 6–8k on steps days), sleep, dizziness yes/no + note. Any past day can be edited.
-- **Protein tracker** (Daily hero card): big ring toward 210 g, +10/+25/+40, saved quick foods (editable presets), custom grams + label, today's timed log (swipe left or tap ✕ to delete), 7-day bar chart vs goal (Daily + Progress).
+- **Daily**: Coach Dre targets (1,800 kcal / 210 g P / ~55 g F / ~125 g C), Lose It-style food diary (meals, remaining counters), protein quick-add (+10/+25/+40), water, steps (7,000 default; 6–8k on steps days), sleep, dizziness yes/no + note. Any past day can be edited.
+- **Food tracker** (Daily): log Breakfast / Lunch / Dinner / Snacks with editable servings or grams. Search built-in cut foods (works offline) plus Open Food Facts (no key) and USDA FoodData Central (`DEMO_KEY`, soft-fail). Barcode scan (BarcodeDetector + camera) or type the code; lookup via Open Food Facts product API. Recents, favorites, saved meals, copy yesterday, quick-add calories/macros, manual entry. Daily totals vs targets with remaining counters. Offline search shows “Needs signal” — no request queue. Protein from the food log feeds the protein tracker once (shake check-off = one food entry).
+- **Protein tracker** (Daily hero card): big ring toward 210 g, +10/+25/+40, saved quick foods (editable presets), custom grams + label, today’s timed log (swipe left or tap ✕ to delete), 7-day bar chart vs goal (Daily + Progress). Totals stay in sync with the food log — no double counting.
 - **Supplements**: daily checklist grouped by timing, tap to mark taken (time stamped), adherence %, 7-day history + 100%-day streak. Defaults: Creatine 5 g (Morning) and Protein shake (Post-workout — checking it off offers to add 50 g, editable, to the protein tracker; unchecking removes that entry). Tirzepatide appears as a checklist line only on injection due days (Sat–Sun by default), linked to the same injection log, and only counts toward adherence on those days. Electrolytes live in the pre-workout check. Edit/add/reorder/remove in Settings.
 - **Tirzepatide injection reminder**: default Saturday; due Sat–Sun, overdue from Monday until logged (window and day editable). Log now or back-date to the injection day; optional dose label and site with rotation hint.
 - **Settings**: schedule per weekday (lift A/B/C/D, steps, class/other training, rest), streak target, cycle start / deload, rest timers, sound/vibration, targets, program editor, Export / Import / Erase.
 - **Backup to Drive (free)**: Settings → **Backup to Drive / Files** (also a Sunday / 7-day reminder card on Today). Uses the Web Share API so Android’s share sheet can offer Drive; falls back to a JSON download. Shows “Last backed up” in Settings. No Google Cloud project or OAuth.
-- **Weekly check-in for Coach Dre**: Monday card on Today + button on Progress. Builds a plain-text summary (7-day avg weight & change, sessions done/planned, top set + e1RM change per lift, PRs, deload/stall notes, protein vs 210 g, kcal, Tue/Thu/Sun steps vs 6–8k, supplements / tirzepatide, dizziness/sleep/water). **Copy** and **Share** — paste it to Dre.
+- **Weekly check-in for Coach Dre**: Monday card on Today + button on Progress. Builds a plain-text summary (7-day avg weight & change, sessions done/planned, top set + e1RM change per lift, PRs, deload/stall notes, food days logged, avg kcal/P/F/C vs targets, Tue/Thu/Sun steps vs 6–8k, supplements / tirzepatide, dizziness/sleep/water). **Copy** and **Share** — paste it to Dre.
 - **Plate calculator**: on barbell / trap-bar sets, shows per-side LA Fitness plates (45/35/25/10/5/2.5) for a 45 lb bar (trap bar separately editable in Settings).
 - **Voice + vibration rest timer**: speaks “Rest over, next set” (and a “10 seconds” warning) via `speechSynthesis`, plus vibration; toggles in Settings. Screen wake lock keeps the timer alive during a workout.
 - **Exercise swap**: ⇄ on each lift shows Coach Dre’s ranked 3 alternatives (exact list in `DRE_SWAPS`). Same rep range · 3 sets · RIR 2. Today-only by default, or **Make permanent in the plan**. Each swap logs its own weight — no carry-over from the original lift; first time = pick a starting weight for the bottom of the range at RIR 2.
@@ -53,6 +54,8 @@ src/fatloss.js    7-day MA, loss rate, goal projection, muscle-risk flag
 src/checkin.js    Coach Dre weekly plain-text summary
 src/backup.js     Web Share / download backup + reminder
 src/swap.js       Swap alternatives + weight conversion
+src/foods.js      Built-in cut foods, meal totals, protein sync (no double count)
+src/food-api.js   Open Food Facts + USDA search/barcode (free, soft-fail)
 src/logic.js      engine glue, program week/deload, rotation, recovery, streak
 src/body.js       front/back body SVG
 src/charts.js     tiny SVG line chart
@@ -65,6 +68,7 @@ screenshots/      e2e screenshots (sample data)
 
 ## Notes / limits
 - Demos: tap **Demo** on an exercise for an in-app youtube-nocookie embed (verified form videos from coaching channels). Offline or failed embed shows “Video needs signal — cues below,” plus an Open in YouTube link. Lifts without a verified video still get a YouTube search link. Videos are not cached by the service worker.
+- Food search: Open Food Facts needs a network signal. USDA’s public `DEMO_KEY` may 403/429 — failures are ignored and you can still use built-in foods or manual entry. Built-in macros are typical values, not lab-analyzed. Barcode camera uses the BarcodeDetector API (Chrome Android); other browsers can type the code. Camera is not available in every environment.
 - Renpho: if a CSV has no unit in the header, kg vs lb is guessed from the values (median < 150 → kg); the preview lets you flip it. Body fat % from a scale is an estimate.
 - Data lives in this browser only — clearing site data or uninstalling deletes it. Use **Backup to Drive / Files** (or Export) regularly; pick Drive in the Android share sheet.
 - Not medical advice. Repeated dizziness → tell the prescriber; fainting/chest pain → 911.

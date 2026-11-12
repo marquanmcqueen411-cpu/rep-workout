@@ -97,14 +97,21 @@ export function buildCheckIn(ref = new Date(), st = state) {
   const prCount = sessions.reduce((n, s) => n + s.exercises.reduce((m, e) => m + e.sets.filter(x => x.pr && x.pr.length).length, 0), 0);
 
   // Nutrition / daily
-  const proteins = [], kcals = [], sleeps = [], waters = [];
+  const proteins = [], kcals = [], fats = [], carbs = [];
+  const sleeps = [], waters = [];
   const stepsDays = [];
-  let suppDays = 0, suppOk = 0;
+  let suppDays = 0, suppOk = 0, foodDays = 0;
   for (const k of keys) {
     const d = st.daily[k];
     if (!d) continue;
-    if (d.protein) proteins.push(d.protein);
-    if (d.kcal) kcals.push(d.kcal);
+    const hasFood = Array.isArray(d.foodLog) && d.foodLog.length;
+    if (hasFood || d.protein || d.kcal) {
+      if (hasFood) foodDays++;
+      if (d.protein) proteins.push(d.protein);
+      if (d.kcal) kcals.push(d.kcal);
+      if (d.fat) fats.push(d.fat);
+      if (d.carbs) carbs.push(d.carbs);
+    }
     if (d.sleep != null) sleeps.push(d.sleep);
     if (d.waterOz) waters.push(d.waterOz);
     const wd = parseYmd(k).getDay();
@@ -115,6 +122,8 @@ export function buildCheckIn(ref = new Date(), st = state) {
   const proteinGoal = st.settings.targets.protein || 210;
   const avgP = avg(proteins);
   const avgK = avg(kcals);
+  const avgF = avg(fats);
+  const avgC = avg(carbs);
 
   // Tirzepatide
   const inj = injectionStatus(parseYmd(to));
@@ -158,8 +167,10 @@ export function buildCheckIn(ref = new Date(), st = state) {
   lines.push(`  PRs this week: ${prCount}`);
   lines.push('');
   lines.push('NUTRITION / RECOVERY');
+  lines.push(`  Food days logged: ${foodDays}/${keys.length}`);
   lines.push(`  Protein avg: ${fmt0(avgP)} g / ${proteinGoal} g${avgP != null ? (avgP >= proteinGoal ? ' ✓' : ' (under)') : ''}`);
   if (avgK != null) lines.push(`  Kcal avg: ${fmt0(avgK)} (target ${st.settings.targets.kcal || 1800})`);
+  if (avgF != null || avgC != null) lines.push(`  Fat avg: ${fmt0(avgF)} g / ${st.settings.targets.fat || 55} g · Carbs avg: ${fmt0(avgC)} g / ${st.settings.targets.carbs || 125} g`);
   if (stepsDays.length) {
     lines.push('  Steps (Tue/Thu/Sun target 6–8k):');
     for (const s of stepsDays) lines.push(`    ${WD_LONG[s.wd]} ${s.k}: ${s.steps.toLocaleString()}`);
