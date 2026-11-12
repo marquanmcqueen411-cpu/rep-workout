@@ -1,5 +1,6 @@
 // Offline-first service worker. Bump VERSION when you change files.
-const VERSION = 'rep-v1.5.1';
+// Same-origin app shell only — YouTube embeds are never cached here.
+const VERSION = 'rep-v1.6.0';
 const ASSETS = [
   './', './index.html', './styles.css', './manifest.json',
   './src/app.js', './src/store.js', './src/logic.js', './src/program.js', './src/exercises.js', './src/body.js', './src/charts.js', './src/progression.js', './src/renpho.js', './src/plates.js', './src/fatloss.js', './src/checkin.js', './src/backup.js', './src/swap.js',

@@ -3,7 +3,7 @@
 //  region: 'upper' | 'lower'  (drives +5 / +10 lb progression)
 //  pattern: movement pattern · swaps: Coach Dre ranked lists in DRE_SWAPS
 //  primary/secondary: muscle ids used by the recovery map
-//  demo: YouTube search query (we link out; no hotlinked/copyrighted media)
+//  demo: verified YouTube video {id,title,channel} when available; else search link
 // ============================================================================
 
 export const MUSCLES = {
@@ -225,6 +225,65 @@ export function exercise(id) {
 export function demoUrl(ex) {
   const q = `${ex.name} proper form tutorial`;
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+}
+
+export function watchUrl(ex) {
+  return ex?.video?.id ? `https://www.youtube.com/watch?v=${ex.video.id}` : demoUrl(ex);
+}
+
+/** youtube-nocookie embed, or null if this lift has no verified video. */
+export function embedUrl(ex) {
+  if (!ex?.video?.id) return null;
+  return `https://www.youtube-nocookie.com/embed/${ex.video.id}?rel=0&modestbranding=1&playsinline=1`;
+}
+
+// Verified via YouTube oEmbed (200). Never invent IDs.
+export const VIDEOS = {
+  bench_press: { id: 'BYKScL2sgCs', title: 'How to Bench Press', channel: 'Alan Thrall (Untamed Strength)' },
+  db_bench_press: { id: 'SHsUIZiNdeY', title: 'Dumbbell Bench Press (BETTER CHEST ACTIVATION!)', channel: 'ATHLEAN-X' },
+  smith_bench_press: { id: 'O5viuEPDXKY', title: 'Smith Machine Bench Press', channel: 'Renaissance Periodization' },
+  machine_chest_press: { id: '0Wa9CfRXUkA', title: 'Hammer Machine Chest Press', channel: 'Renaissance Periodization' },
+  incline_db_press: { id: '5CECBjd7HLQ', title: 'Incline Dumbbell Press', channel: 'Renaissance Periodization' },
+  incline_smith_press: { id: '8urE8Z8AMQ4', title: 'Smith Machine Incline Press', channel: 'Renaissance Periodization' },
+  incline_machine_press: { id: 'TrTSvn5-MTk', title: 'Incline Machine Chest Press', channel: 'Renaissance Periodization' },
+  incline_bb_press: { id: 'lJ2o89kcnxY', title: 'Incline Medium Grip Bench Press', channel: 'Renaissance Periodization' },
+  seated_db_shoulder_press: { id: 'HzIiNhHhhtA', title: 'Seated Dumbbell Shoulder Press', channel: 'Renaissance Periodization' },
+  machine_shoulder_press: { id: 'WvLMauqrnK8', title: 'Machine Shoulder Press', channel: 'Renaissance Periodization' },
+  smith_shoulder_press: { id: 'OLqZDUUD2b0', title: 'Smith Machine Seated Shoulder Press', channel: 'Renaissance Periodization' },
+  landmine_press: { id: 'x071zV-Bo2E', title: 'Exercise Index - Landmine Shoulder Press', channel: 'mountaindog1' },
+  chest_supported_row: { id: '0UBRfiO4zDs', title: 'Chest Supported Row', channel: 'Renaissance Periodization' },
+  chest_supported_tbar_row: { id: 'yPis7nlbqdY', title: 'T Bar Row', channel: 'Renaissance Periodization' },
+  seated_cable_row: { id: 'UCXxvVItLoM', title: 'Seated Cable Row', channel: 'Renaissance Periodization' },
+  machine_row: { id: '5XfV6hvcxCE', title: 'Improve Your Machine Rows For A Bigger Back', channel: 'Renaissance Periodization' },
+  lat_pulldown: { id: 'EUIri47Epcg', title: 'Normal Grip Pulldown', channel: 'Renaissance Periodization' },
+  machine_pulldown: { id: '--utaPT7XYQ', title: 'Parallel Pulldown', channel: 'Renaissance Periodization' },
+  assisted_pullup: { id: '8ygapPMYK1I', title: 'Assisted Normal Grip Pullup', channel: 'Renaissance Periodization' },
+  cable_lateral_raise: { id: 'lq7eLC30b9w', title: 'Leaning Cable Lateral Raise', channel: 'Renaissance Periodization' },
+  db_lateral_raise: { id: 'OuG1smZTsQQ', title: 'Lateral Raise', channel: 'Renaissance Periodization' },
+  machine_lateral_raise: { id: '0o07iGKUarI', title: 'Machine Lateral Raise', channel: 'Renaissance Periodization' },
+  leaning_db_lateral: { id: 'qWif_7SOYpQ', title: 'How To Perform the Leaning Lateral Raise | Shoulders Exercise Tutorial', channel: 'Buff Dudes Workouts' },
+  box_squat: { id: 'rRihE4weYg4', title: 'How to Box Squat (feat. Donnie Thompson)', channel: 'Squat University' },
+  hack_squat: { id: 'rYgNArpwE7E', title: 'Hack Squat', channel: 'Renaissance Periodization' },
+  goblet_box_squat: { id: 'nfX7IFK9UNI', title: 'How to do a Goblet Squat  | Proper Form & Technique | NASM', channel: 'National Academy of Sports Medicine (NASM)' },
+  romanian_deadlift: { id: '_oyxCn2iSjU', title: 'HOW TO DO ROMANIAN DEADLIFTS (RDLs): Build Beefy Hamstrings With Perfect Technique', channel: 'Jeff Nippard' },
+  db_romanian_deadlift: { id: 'cYKYGwcg0U8', title: 'Dumbbell Stiff Legged Deadlift', channel: 'Renaissance Periodization' },
+  back_extension_45: { id: 'H8Swl1N-uis', title: 'STOP Doing Back Extensions Like This!', channel: 'Squat University' },
+  leg_press: { id: 'yZmx_Ac3880', title: 'Leg Press', channel: 'Renaissance Periodization' },
+  smith_squat: { id: '-eO_VydErV0', title: 'Feet Forward Smith Squat', channel: 'Renaissance Periodization' },
+  belt_squat: { id: 'sgJhPSFQ_Og', title: 'How to perform a belt squat | Peter Attia', channel: 'Peter Attia MD' },
+  trap_bar_deadlift: { id: 'TU2xZ7s4jus', title: 'The Trap Bar Deadlift', channel: 'Alan Thrall (Untamed Strength)' },
+  bb_deadlift_blocks: { id: 'jfSxbT-65ow', title: 'The Block/Rack Pull: Untamed Special', channel: 'Alan Thrall (Untamed Strength)' },
+  db_deadlift: { id: 'JNpUNRPQkAk', title: 'The Dumbbell Deadlift', channel: 'CrossFit' },
+  split_squat: { id: 'jNihW0WDIL4', title: 'Split Squat', channel: 'Renaissance Periodization' },
+  db_reverse_lunge: { id: 'TQfhY5oJ_Sc', title: 'Reverse Lunge', channel: 'Renaissance Periodization' },
+  bulgarian_split_squat: { id: 'hPlKPjohFS0', title: 'The PERFECT Bulgarian Split Squat (Avoid These Errors!)', channel: 'Squat University' },
+  hip_thrust: { id: 'kqi4_EPpwCk', title: 'How To Do Hip Thrusts The Right Way', channel: 'Renaissance Periodization' },
+  glute_drive_machine: { id: 'ZSPmIyX9RZs', title: 'Machine Hip Thrust', channel: 'Renaissance Periodization' },
+  single_leg_db_hip_thrust: { id: 'baTlVyx3RS8', title: 'Single Leg Hip Thrust', channel: 'Bret Contreras Glute Guy' },
+};
+
+for (const ex of EXERCISES) {
+  if (VIDEOS[ex.id]) ex.video = VIDEOS[ex.id];
 }
 
 // Coach Dre's ranked swap lists (exactly 3, in order) for each primary lift.

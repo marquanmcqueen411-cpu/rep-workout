@@ -1,5 +1,5 @@
 import { state, save, ymd, parseYmd, mondayOf, addDays, day, replaceState, resetAll, resetProgram, clone, uid, recalcProtein } from './store.js';
-import { EXERCISES, MUSCLES, exercise, demoUrl, alternatives } from './exercises.js';
+import { EXERCISES, MUSCLES, exercise, demoUrl, watchUrl, embedUrl } from './exercises.js';
 import { PROGRESSION, BODYWEIGHT, SUPP_TIMINGS } from './program.js';
 import { WD, WD_LONG, workoutById, doneSessions, programWeek, scheduleFor, nextInRotation, suggest, fmtW,
   historyFor, e1rm, recovery, recColor, streak, trainingDays, round, suppAdherence, suppStreak, injectionStatus, injLine, incFor, priorSets, exStats } from './logic.js';
@@ -529,7 +529,7 @@ function viewSettings() {
     <button class="btn danger wide" data-act="resetAll">Erase all data</button>
     <p class="muted sm">${doneSessions().length} sessions · ${state.bodyweight.length} weigh-ins · ${state.dizzyEvents.length} dizziness events · ${state.injections.length} injections · ${state.supplements.length} supplements</p></section>`;
   h += `<section class="card"><h3>Safety</h3><p class="muted sm">Don't lift fasted. Eat carbs + protein 1–2 h before, drink water/electrolytes. If dizzy or lightheaded: stop, sit or lie down, sip fluids, have some fast carbs. Fainting, chest pain, or confusion → call 911. Tell your prescriber about repeated dizziness.</p>
-    <p class="muted sm">Rep v1.5.1 · personal use</p></section>`;
+    <p class="muted sm">Rep v1.6.0 · personal use</p></section>`;
   return h;
 }
 
@@ -549,9 +549,31 @@ function infoSheet(id) {
     <div class="minibody">${bodySvg('front', col, { cls: 'sm' })}${bodySvg('back', col, { cls: 'sm' })}</div>
     <div class="chips">${ex.primary.map(m => `<span class="chip accent">${MUSCLES[m]}</span>`).join('')}${ex.secondary.map(m => `<span class="chip">${MUSCLES[m]}</span>`).join('')}</div>
     <h3>Form cues</h3><ol class="cues">${ex.cues.map(c => `<li>${esc(c)}</li>`).join('')}<li><b>RIR 2:</b> stop each set with ~2 good reps left.</li></ol>
-    <a class="btn primary wide" href="${demoUrl(ex)}" target="_blank" rel="noopener">▶ Watch demo videos (YouTube)</a>
+    <button class="btn primary wide" data-act="demo" data-ex="${ex.id}">▶ Demo</button>
     <button class="btn wide" data-act="exHist" data-ex="${ex.id}">📈 History &amp; PRs</button>
     <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+}
+
+function demoSheet(id) {
+  const ex = exercise(id);
+  const online = typeof navigator === 'undefined' || navigator.onLine !== false;
+  const embed = embedUrl(ex);
+  const yt = watchUrl(ex);
+  let media;
+  if (!embed) media = `<p class="muted sm">No saved demo — search on YouTube, or use the cues below.</p>`;
+  else if (!online) media = `<div class="demo-offline" role="status">Video needs signal — cues below</div>`;
+  else media = `<div class="demo-wrap"><iframe class="demo-frame" src="${embed}" title="${esc(ex.video.title)}" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen playsinline></iframe></div>
+    <p class="muted sm">${esc(ex.video.channel)} · ${esc(ex.video.title)}</p>`;
+  sheet(`<div class="eyebrow accent">Demo</div><h2>${esc(ex.name)}</h2>
+    ${media}
+    <h3>Form cues</h3><ol class="cues">${ex.cues.map(c => `<li>${esc(c)}</li>`).join('')}<li><b>RIR 2:</b> stop each set with ~2 good reps left.</li></ol>
+    <a class="btn ghost wide" href="${yt}" target="_blank" rel="noopener">Open in YouTube</a>
+    <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  const frame = document.querySelector('.demo-frame');
+  if (frame) frame.addEventListener('error', () => {
+    const wrap = document.querySelector('.demo-wrap');
+    if (wrap) wrap.outerHTML = `<div class="demo-offline" role="status">Video needs signal — cues below</div>`;
+  });
 }
 
 function swapSheet(i) {
@@ -693,6 +715,7 @@ const actions = {
   choose: () => chooseSheet(),
   pick: el => { ui.choice = el.dataset.w; closeSheet(); render(); },
   info: el => infoSheet(el.dataset.ex),
+  demo: el => demoSheet(el.dataset.ex),
   precheck: el => precheckSheet(el.dataset.w),
   pq: el => { ui.pre[el.dataset.k] = el.dataset.v === '1'; precheckSheet(ui.pre.w); },
   start: () => startSession(),
@@ -1016,5 +1039,5 @@ window.__rep = {
   get state() { return state; }, render, injectionStatus, suppAdherence, injLine,
   buildCheckIn, plateBreakdown, formatPlates, wantsPlates, barFor,
   lossRate, projectGoal, muscleRiskFlag, movingAverage, needsBackupReminder,
-  swapSuggestion, shareOrDownloadBackup,
+  swapSuggestion, shareOrDownloadBackup, embedUrl, watchUrl, demoUrl,
 };

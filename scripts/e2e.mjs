@@ -28,6 +28,13 @@ await page.waitForSelector('.hero');
 page.on('dialog', d => d.accept().catch(() => {}));
 assert(await page.locator('.inj >> text=Tirzepatide').count(), 'injection card on Today (not logged yet)');
 
+// Keep progression assertions weekday-stable (Wed = L1, etc.)
+if (!(await page.locator('.workout-card >> text=Upper 1').count())) {
+  await page.click('[data-act=choose]');
+  await page.click('[data-act=pick][data-w=U1]');
+  await page.waitForSelector('.workout-card >> text=Upper 1');
+}
+
 // ---- injection due-window logic (default Saturday, due Sat–Sun, overdue Mon)
 const inj = await page.evaluate(() => {
   const R = window.__rep, s = R.state, saved = s.injections;
@@ -47,6 +54,18 @@ if (new Date().getDay() === 1) {
 
 // ---- workout preview: progression suggestion for bench (hit 8/8/8 @180 → +5 = 185)
 assert(await page.locator('.workout-card >> text=185 lb').count(), 'bench suggestion +5 lb (185)');
+
+// Built-in demo (lazy iframe, youtube-nocookie)
+await page.click('.exlist [data-act=info][data-ex=bench_press]');
+await page.waitForSelector('.panel >> text=Form cues');
+await page.click('.panel [data-act=demo]');
+await page.waitForSelector('.panel .demo-frame, .panel .demo-offline');
+assert(await page.locator('.panel iframe.demo-frame').count(), 'demo sheet renders an iframe');
+assert((await page.locator('.panel iframe.demo-frame').getAttribute('src') || '').includes('youtube-nocookie.com/embed/BYKScL2sgCs'), 'embed uses verified nocookie URL');
+await page.waitForTimeout(400);
+await page.screenshot({ path: SHOTS + '24-demo-video.png' });
+await page.click('.panel [data-act=closeSheet]');
+
 await page.click('[data-act=precheck]');
 await page.click('[data-act=pq][data-k=ate][data-v="0"]');
 assert(await page.locator("text=Don't lift fasted").count(), 'fasted warning shown');
@@ -264,12 +283,19 @@ log('ok - import restored backup');
 // ---- v1.5: backup reminder, check-in, fat-loss, plates, swap, voice settings
 await page.click('.tabbar [data-tab=today]');
 await page.waitForSelector('.hero');
-// Today is Monday Nov 9 2026 in the e2e timezone → check-in card + (likely) backup reminder
-assert(await page.locator('.card.checkin >> text=Coach Dre check-in').count(), 'Monday check-in card');
-await page.evaluate(() => { const el = document.querySelector('.card.checkin'); el?.scrollIntoView({ block: 'center' }); });
-await page.waitForTimeout(400);
-await page.screenshot({ path: SHOTS + '16-monday-checkin-card.png' });
-await page.click('[data-act=checkIn]');
+// Monday card only shows on Mondays; other days open the same sheet from Progress
+const isMon = await page.evaluate(() => new Date().getDay() === 1);
+if (isMon) {
+  assert(await page.locator('.card.checkin >> text=Coach Dre check-in').count(), 'Monday check-in card');
+  await page.evaluate(() => { const el = document.querySelector('.card.checkin'); el?.scrollIntoView({ block: 'center' }); });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: SHOTS + '16-monday-checkin-card.png' });
+  await page.click('[data-act=checkIn]');
+} else {
+  log('ok - skip Monday check-in card (not Monday)');
+  await page.click('.tabbar [data-tab=progress]');
+  await page.click('[data-act=checkIn]');
+}
 await page.waitForSelector('.panel >> text=Weekly check-in');
 assert(await page.locator('#checkInText').count(), 'check-in plain-text block');
 const checkTxt = await page.textContent('#checkInText');

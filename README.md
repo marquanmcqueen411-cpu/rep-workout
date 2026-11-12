@@ -1,4 +1,4 @@
-# Rep — Boss's workout app (v1.5.1)
+# Rep — Boss's workout app (v1.6.0)
 
 Personal, mobile-first PWA (not a Fernholt product). Plain static site: vanilla JS ES modules, no framework, no backend, no accounts. All data stays on the phone (localStorage) with JSON Export/Import in Settings.
 
@@ -64,7 +64,7 @@ screenshots/      e2e screenshots (sample data)
 ```
 
 ## Notes / limits
-- Demos link out to a YouTube search for the exercise (no hotlinked/copyrighted media); each exercise sheet also shows a highlighted muscle diagram + text cues.
+- Demos: tap **Demo** on an exercise for an in-app youtube-nocookie embed (verified form videos from coaching channels). Offline or failed embed shows “Video needs signal — cues below,” plus an Open in YouTube link. Lifts without a verified video still get a YouTube search link. Videos are not cached by the service worker.
 - Renpho: if a CSV has no unit in the header, kg vs lb is guessed from the values (median < 150 → kg); the preview lets you flip it. Body fat % from a scale is an estimate.
 - Data lives in this browser only — clearing site data or uninstalling deletes it. Use **Backup to Drive / Files** (or Export) regularly; pick Drive in the Android share sheet.
 - Not medical advice. Repeated dizziness → tell the prescriber; fainting/chest pain → 911.
