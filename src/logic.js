@@ -27,6 +27,7 @@ export function programWeek(date = new Date()) {
 /** Reasons to start an early deload today (not shown while a deload is on or after he dismissed these exact reasons today). */
 export function deloadPrompt(date = new Date()) {
   const pw = programWeek(date);
+  if (pw.notStarted && !pw.early) return null; // plan hasn't started yet — no deload prompts
   const reasons = deloadTriggers(state, date, { plannedDeload: pw.deload });
   if (!reasons.length) return null;
   const key = reasons.map(r => r.key).sort().join('|');

@@ -16,7 +16,7 @@ const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, de
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
-page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+page.on('console', m => { if (m.type() === 'error' && !/^Permissions policy violation: compute-pressure/.test(m.text())) errors.push(m.text()); }); // Chrome-internal noise, not the app
 
 await page.goto(APP_URL);
 await page.waitForSelector('.hero');
@@ -761,6 +761,31 @@ catch { log('note - reload stalled, retrying via goto'); await page.goto(APP_URL
 await page.waitForFunction(() => navigator.serviceWorker.controller);
 await ctx.setOffline(true); await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('.tabbar');
 log('ok - loads offline via service worker'); await ctx.setOffline(false);
+
+// ---- v2.0.1: one-time setup on his phone (v2.0 data, no flag) -> Nov 13 baseline + plan starts Mon Nov 23
+await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('rep-workout.v1')); delete s.oneTime; s.settings.cycleStart = '2026-11-02'; s.settings.earlyDeload = null; s.bodyweight = s.bodyweight.filter(b => b.date !== '2026-11-13' && b.date < '2026-11-13'); localStorage.setItem('rep-workout.v1', JSON.stringify(s)); });
+await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('.hero');
+const one = await page.evaluate(() => { const s = window.__rep.state, b = s.bodyweight.filter(x => x.date === '2026-11-13'); return { n: b.length, b: b[0], cs: s.settings.cycleStart, flag: !!s.oneTime.baseline20261113, saved: !!JSON.parse(localStorage.getItem('rep-workout.v1')).oneTime?.baseline20261113 }; });
+assert(one.n === 1 && one.b.lb === 256 && one.b.bf === 39.6 && one.b.visceral === 21 && one.b.bmr === 1872 && one.b.baseline && one.cs === '2026-11-23' && one.flag && one.saved, 'one-time baseline + plan start applied and saved ' + JSON.stringify(one));
+await page.click('.tabbar [data-tab=today]'); await page.waitForSelector('#planStart');
+await page.evaluate(() => window.scrollTo(0, 0));
+assert(await page.locator('#planStart >> text=Plan starts Mon Nov 23').count(), 'Today: Plan starts Mon Nov 23 chip');
+assert(!(await page.locator('text=/Week -/').count()), 'no negative week');
+assert(!(await page.locator('#deloadPrompt, .deload-prompt').count()), 'no deload prompt before plan start');
+assert((await page.evaluate(() => { const R = window.__rep, pw = R.programWeek(); return R.suggest(R.state.program.workouts[0].exercises[0], { deload: pw.deload }).sets; })) === 4, 'before plan start: workouts still suggested normally (bench 4 sets)');
+await page.waitForTimeout(300);
+await page.screenshot({ path: SHOTS + '40-today-plan-starts.png' });
+await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('.hero');
+assert((await page.evaluate(() => window.__rep.state.bodyweight.filter(x => x.date === '2026-11-13').length)) === 1, 'reload does not add a second baseline');
+await page.click('.tabbar [data-tab=progress]');
+await page.waitForSelector('#rescanCard');
+assert(await page.locator('#rescanCard >> text=Next Renpho rescan: Mon Dec 21').count(), 'Progress: next rescan Mon Dec 21');
+assert(await page.locator('#rescanCard >> text=/Baseline Fri Nov 13: 256 lb/').count(), 'Progress: baseline line');
+await page.evaluate(() => { document.querySelector('#rescanCard').scrollIntoView({ block: 'start' }); window.scrollBy(0, -8); });
+await page.waitForTimeout(300);
+await page.screenshot({ path: SHOTS + '41-progress-baseline-rescan.png' });
+log('ok - v2.0.1 one-time setup, plan-start chip, rescan card');
+await page.click('.tabbar [data-tab=today]');
 
 // ---- clear sample data
 await page.evaluate(() => { localStorage.clear(); });

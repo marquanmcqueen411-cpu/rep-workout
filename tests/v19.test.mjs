@@ -190,7 +190,7 @@ test('migration: v1 plan → 4-day split; history, weights, cycle and permanent 
     { id: 's1', workoutId: 'U1', workoutName: 'Upper 1', date: '2026-11-09', start: '2026-11-09T18:00:00.000Z', status: 'done', exercises: [{ exId: 'bench_press', reps: [6, 8], sets: S(180, [8, 8, 8]) }] },
     { id: 's2', workoutId: 'U2', workoutName: 'Upper 2', date: '2026-11-13', start: '2026-11-13T18:00:00.000Z', status: 'done', exercises: [{ exId: 'lat_pulldown', reps: [8, 12], sets: S(160, [12, 12, 12]) }] },
   ];
-  store.replaceState({ program: v1Program(), sessions, settings: { schedule: v1Schedule(), cycleStart: '2026-10-26', rest: { first: 165, other: 90 } }, bodyweight: [{ date: '2026-10-23', lb: 255 }] });
+  store.replaceState({ program: v1Program(), sessions, settings: { schedule: v1Schedule(), cycleStart: '2026-10-26', rest: { first: 165, other: 90 } }, bodyweight: [{ date: '2026-10-23', lb: 255 }], oneTime: { baseline20261113: true } });
   const s = store.state;
   assert.equal(s.program.id, PROGRAM.id);
   assert.equal(s.program.workouts[0].exercises.length, 6);
@@ -236,5 +236,5 @@ test('v1.9.1/v2.0: user-facing text calls him Marquan, not Boss', async () => {
   }
   assert.match(fs.readFileSync(new URL('../src/app.js', import.meta.url), 'utf8'), /Nice work, Marquan\./);
   assert.match(buildCheckIn(new Date('2026-11-16T09:00:00')).text, /^Marquan · /m);
-  assert.match(fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8'), /rep-v2\.0\.0/);
+  assert.match(fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8'), /rep-v2\.0\.1/);
 });

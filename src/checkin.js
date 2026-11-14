@@ -152,8 +152,10 @@ export function buildCheckIn(ref = new Date(), st = state) {
   lines.push(`Rep weekly check-in · ${from} → ${to}`);
   lines.push(`Marquan · ${st.program.name || PROGRAM.name}`);
   const early = earlyDeloadOn(st.settings.earlyDeload, parseYmd(to)) ? st.settings.earlyDeload : null;
-  lines.push(`Program: week ${pw.week} of ${pw.of}${early ? ' (EARLY DELOAD)' : pw.deload ? ' (DELOAD)' : ''} · cycle ${pw.cycle} · compounds RIR 2, isolation RIR 1–2, supersets 60 s`);
-  if (early) lines.push(`  Early deload since ${early.from}: ${early.reason}`);
+  lines.push(pw.notStarted ? `Program: plan starts ${pw.startsOn} · compounds RIR 2, isolation RIR 1–2, supersets 60 s`
+    : `Program: week ${pw.week} of ${pw.of}${early ? ' (EARLY DELOAD)' : pw.deload ? ' (DELOAD)' : ''} · cycle ${pw.cycle} · compounds RIR 2, isolation RIR 1–2, supersets 60 s`);
+  if (pw.notStarted && !early) { /* no deload checks before the plan starts */ }
+  else if (early) lines.push(`  Early deload since ${early.from}: ${early.reason}`);
   else {
     const trig = deloadTriggers(st, parseYmd(to), { plannedDeload: pw.deload });
     lines.push(`  Deload check: ${trig.length ? trig.map(t => t.text).join('; ') + ' → deload suggested' : 'no early-deload triggers'}`);

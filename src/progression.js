@@ -270,6 +270,8 @@ export function weekOf(cycleStartYmd, date, cycleWeeks = 6, deloadWeek = 6, delo
   const start = new Date(y, m - 1, dd);
   const mon = d => dayIndex(d) - ((d.getDay() + 6) % 7);
   const wk = Math.floor((mon(date) - mon(start)) / 7);
+  // Future start (e.g. "plan starts Mon Nov 23"): no negative weeks, never a deload.
+  if (dayIndex(date) < dayIndex(start)) return { week: 0, cycle: 0, deload: false, of: cycleWeeks, notStarted: true, startsOn: cycleStartYmd, daysToStart: dayIndex(start) - dayIndex(date) };
   const week = ((wk % cycleWeeks) + cycleWeeks) % cycleWeeks + 1;
-  return { week, cycle: Math.floor(wk / cycleWeeks) + 1, deload: !!deloadEnabled && week === deloadWeek, of: cycleWeeks };
+  return { week, cycle: Math.floor(wk / cycleWeeks) + 1, deload: !!deloadEnabled && week === deloadWeek, of: cycleWeeks, notStarted: false };
 }

@@ -7,7 +7,7 @@ import { startEarlyDeload } from './deload.js';
 import { warmups, equipOf, EQUIP_LABEL, defaultIncrement, detectPRs, e1rm as epley, logKind, setScore, bwOn, targetRir } from './progression.js';
 import { bodySvg } from './body.js';
 import { lineChart, barChart } from './charts.js';
-import { parseRenpho, mergeBodyweight, leanMass } from './renpho.js';
+import { parseRenpho, mergeBodyweight, leanMass, nextRescan } from './renpho.js';
 import { MEALS, BUILTIN_FOODS, BUILTIN_BY_ID, scaleFood, totals, remaining, syncedTotals, applySyncedTotals, proteinEntriesFromFood, rememberRecent, isFavorite, toggleFavorite, foodKey } from './foods.js';
 import { searchFoods, lookupBarcode } from './food-api.js';
 import { plateBreakdown, formatPlates, wantsPlates, barFor } from './plates.js';
@@ -47,7 +47,7 @@ function viewToday() {
   const d = day();
   const t = state.settings.targets;
   let h = `<header class="hero"><div class="eyebrow">${WD_LONG[now.getDay()]}, ${now.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</div>
-    <h1>Today</h1><div class="chips"><span class="chip ${pw.deload ? 'warn' : ''}">Week ${pw.week} of ${pw.of}${pw.deload ? ' · DELOAD' : ''}</span><span class="chip">Cycle ${pw.cycle}</span><span class="chip">${pw.deload ? 'RIR 3' : 'RIR 2 · iso 1–2'}</span></div></header>`;
+    <h1>Today</h1><div class="chips">${pw.notStarted && !pw.early ? `<span class="chip accent" id="planStart">Plan starts ${esc(fmtStart(pw.startsOn))}</span>` : `<span class="chip ${pw.deload ? 'warn' : ''}">Week ${pw.week} of ${pw.of}${pw.deload ? ' · DELOAD' : ''}</span><span class="chip">Cycle ${pw.cycle}</span>`}<span class="chip">${pw.deload ? 'RIR 3' : 'RIR 2 · iso 1–2'}</span></div></header>`;
   if (pw.deload) h += `<div class="banner deload"><b>${pw.early ? 'Early deload' : 'Deload week'}.</b> 2 sets per lift, same weights, stop 3 reps short (RIR 3). Recover, move well, keep protein high.${pw.early && pw.reason ? `<br><small>Why: ${esc(pw.reason)}</small>` : ''}</div>`;
   h += deloadPromptCard();
   h += weighInCard();
@@ -174,7 +174,7 @@ function visible(a) {
 function viewWorkout() {
   const a = state.active;
   let h = `<div class="safety" role="status"><span>⚠️ Dizzy? <b>Stop. Sit. Sip fluids.</b></span><button class="btn danger sm" data-act="dizzy">I feel dizzy</button></div>`;
-  h += `<header class="hero tight"><div class="eyebrow">Week ${a.week}${a.deload ? ' · DELOAD · RIR 3' : ' · RIR 2 · iso 1–2'}</div>
+  h += `<header class="hero tight"><div class="eyebrow">${a.week ? `Week ${a.week}` : 'Before plan start'}${a.deload ? ' · DELOAD · RIR 3' : ' · RIR 2 · iso 1–2'}</div>
     <div class="row between"><h1>${esc(a.workoutName)}</h1><span class="clock" id="elapsed">0:00</span></div>
     <label class="toggle"><input type="checkbox" data-change="badDay" ${a.badDay ? 'checked' : ''}><span></span>Bad day <small>(2 lifts × 2 sets)</small></label></header>`;
   if (a.deload) h += `<div class="banner deload"><b>Deload:</b> 2 sets, same weights, stop 3 reps short (RIR 3). Smooth reps, no grinding.</div>`;
@@ -275,9 +275,10 @@ function viewProgress() {
     ${fatBits}
     ${lineChart(series.raw, { goal, unit: ' lb', label: 'Bodyweight', overlay: series.ma, overlayColor: '#3aa0ff', overlayLabel: '7-day avg' })}
     <div class="row bwrow"><input id="bwDate" class="inp" type="date" aria-label="Weigh-in date" value="${ymd()}"><input id="bwVal" class="inp" aria-label="Weight in lb" type="number" inputmode="decimal" step="0.1" placeholder="lb"><button class="btn primary" data-act="addBw">Add</button></div>
-    <ul class="mini">${bw.slice(-6).reverse().map(b => `<li><span>${b.date}${b.source === 'renpho' ? ' <span class="chip sm">Renpho</span>' : ''}</span><b>${b.lb} lb${b.bf != null ? ` · ${b.bf}%` : ''}</b><button class="link" data-act="delBw" data-d="${b.date}" aria-label="Delete ${b.date}">✕</button></li>`).join('')}</ul>
+    <ul class="mini">${bw.slice(-6).reverse().map(b => `<li><span>${b.date}${b.baseline ? ' <span class="chip sm accent">Baseline</span>' : b.source === 'renpho' ? ' <span class="chip sm">Renpho</span>' : ''}</span><b>${b.lb} lb${b.bf != null ? ` · ${b.bf}%` : ''}</b><button class="link" data-act="delBw" data-d="${b.date}" aria-label="Delete ${b.date}">✕</button></li>`).join('')}</ul>
     <button class="btn ghost wide" data-act="renphoPick">⇪ Import from Renpho (CSV)</button></section>`;
   h += expenditureCard();
+  h += rescanCard(bw);
   h += bodyCompCard(bw);
   // strength + relative strength
   const used = new Set(doneSessions().flatMap(s => s.exercises.map(e => e.exId)));
@@ -314,6 +315,15 @@ function expenditureCard() {
     <p class="muted sm">kcal/day · last ${x.days} days (${x.loggedDays} food days, ${x.weighIns} weigh-ins). Suggestion only — Coach Brooke sets your targets. Early cut weeks include water weight.</p></section>`;
 }
 
+/** "Mon Nov 23" */
+function fmtStart(k) { const d = parseYmd(k); return `${WD[d.getDay()]} ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`; }
+function rescanCard(bw) {
+  const r = nextRescan(bw, state.settings.cycleStart); if (!r) return '';
+  const b = r.base; const due = ymd() >= r.next;
+  const extra = [b.visceral != null ? `visceral ${b.visceral}` : '', b.skeletalMuscleLb != null ? `skeletal muscle ${b.skeletalMuscleLb} lb` : ''].filter(Boolean).join(' · ');
+  return `<section class="card rescan" id="rescanCard"><div class="row between"><h3>Next Renpho rescan: ${esc(fmtStart(r.next))}</h3>${due ? '<span class="chip warn">due</span>' : ''}</div>
+    <p class="muted sm">${b.baseline ? 'Baseline' : 'Last scan'} ${esc(fmtStart(b.date))}: <b>${b.lb} lb · ${b.bf}%</b>${extra ? ` · ${esc(extra)}` : ''}. Rescan every 4 weeks, same conditions: Monday morning, after the bathroom, before eating.</p></section>`;
+}
 function bodyCompCard(bw) {
   const bc = bw.filter(b => b.bf != null);
   const head = `<section class="card"><div class="row between"><h3>Body composition</h3><span class="chip">lean = weight × (1 − BF%)</span></div>`;
@@ -747,7 +757,7 @@ function viewSettings() {
     ${order.map(i => { const x = s.schedule[i]; const v = x.type === 'lift' ? `lift:${x.workout}` : x.type; return `<div class="frow"><label>${WD_LONG[i]}</label><select class="inp" data-change="sched" data-d="${i}" aria-label="${WD_LONG[i]} plan">${schedOpt(v)}</select></div>`; }).join('')}
     <div class="frow"><label>Streak target (days/week)</label><input class="inp num" type="number" min="1" max="7" data-change="weeklyTarget" aria-label="Streak target days per week" value="${s.weeklyTarget}"></div></section>`;
   const pw = programWeek();
-  h += `<section class="card"><h3>Program cycle</h3><p class="muted sm">Currently week ${pw.week} of ${pw.of}${pw.deload ? ' (deload)' : ''}. Week ${state.program.deloadWeek} is a deload.</p>
+  h += `<section class="card"><h3>Program cycle</h3><p class="muted sm">${pw.notStarted && !pw.early ? `Plan starts ${esc(fmtStart(pw.startsOn))} (in ${pw.daysToStart} day${pw.daysToStart === 1 ? '' : 's'}). Workouts logged before then still count for progression.` : `Currently week ${pw.week} of ${pw.of}${pw.deload ? ' (deload)' : ''}.`} Week ${state.program.deloadWeek} is a deload.</p>
     <div class="frow"><label>Week 1 started</label><input class="inp" type="date" data-change="cycleStart" aria-label="Program week 1 start date" value="${s.cycleStart}"></div>
     <label class="toggle"><input type="checkbox" data-change="deloadEnabled" ${s.deloadEnabled ? 'checked' : ''}><span></span>Deload on week ${state.program.deloadWeek}</label>
     <button class="btn ghost" data-act="newCycle">Start new cycle this week</button>
@@ -808,7 +818,7 @@ function viewSettings() {
     <button class="btn danger wide" data-act="resetAll">Erase all data</button>
     <p class="muted sm">${doneSessions().length} sessions · ${state.bodyweight.length} weigh-ins · ${state.dizzyEvents.length} dizziness events · ${state.injections.length} injections · ${state.supplements.length} supplements</p></section>`;
   h += `<section class="card"><h3>Safety</h3><p class="muted sm">Don't lift fasted. Eat carbs + protein 1–2 h before, drink water/electrolytes. If dizzy or lightheaded: stop, sit or lie down, sip fluids, have some fast carbs. Fainting, chest pain, or confusion → call 911. Tell your prescriber about repeated dizziness.</p>
-    <p class="muted sm">Rep v2.0.0 · personal use</p></section>`;
+    <p class="muted sm">Rep v2.0.1 · personal use</p></section>`;
   return h;
 }
 

@@ -58,6 +58,7 @@ function defaults() {
     savedMeals: [],
     recentFoods: [],
     exNotes: {},           // sticky per-exercise setup notes (seat height, pins, grip)
+    oneTime: { baseline20261113: { skipped: 'fresh install' } }, // one-time setups already handled (see applyOneTime)
   };
 }
 
@@ -75,6 +76,8 @@ function migrate(s) {
   if (out.program && typeof out.program.name === 'string') out.program.name = out.program.name.replace(/Coach Dre\b/g, 'Coach Brooke'); // coach renamed
   if (!out.daily || typeof out.daily !== 'object') out.daily = {};
   if (!Array.isArray(out.settings.deloadLog)) out.settings.deloadLog = [];
+  out.oneTime = s.oneTime && typeof s.oneTime === 'object' && !Array.isArray(s.oneTime) ? { ...s.oneTime } : {}; // saved data only — never the fresh-install default
+  applyOneTime(out);
   if (!out.exNotes || typeof out.exNotes !== 'object' || Array.isArray(out.exNotes)) out.exNotes = {};
   // v1.1 shipped placeholder "example" supplements — swap them for the real defaults
   if (out.supplements.length && out.supplements.every(x => x.example)) out.supplements = d.supplements;
@@ -118,6 +121,30 @@ export function migratePlan(out, d = defaults()) {
   return out;
 }
 
+/**
+ * One-time setups, each guarded by a flag in state.oneTime so it runs once and never overwrites data.
+ * baseline20261113 (Marquan asked, v2.0.1): log the Nov 13 Renpho scan as the baseline and start the
+ * final v2 plan on Mon Nov 23 (after Detroit).
+ */
+export const BASELINE_20261113 = {
+  date: '2026-11-13', lb: 256.0, bf: 39.6, visceral: 21, skeletalMuscleLb: 99.4, fatFreeLb: 154.6, muscleLb: 147.0, bmr: 1872,
+  source: 'renpho', baseline: true,
+};
+export const PLAN_START_20261123 = '2026-11-23';
+export function applyOneTime(out) {
+  if (!out.oneTime || typeof out.oneTime !== 'object' || Array.isArray(out.oneTime)) out.oneTime = {};
+  if (out.oneTime.baseline20261113) return out;
+  const done = { at: new Date().toISOString(), addedBaseline: false, cycleStart: { from: out.settings.cycleStart, to: PLAN_START_20261123 } };
+  if (!out.bodyweight.some(b => b && b.date === BASELINE_20261113.date)) {
+    out.bodyweight.push(clone(BASELINE_20261113));
+    out.bodyweight.sort((a, b) => a.date.localeCompare(b.date));
+    done.addedBaseline = true;
+  }
+  out.settings.cycleStart = PLAN_START_20261123;
+  out.oneTime.baseline20261113 = done;
+  return out;
+}
+
 function load() {
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null;
@@ -128,6 +155,7 @@ function load() {
 
 export let state = load();
 export function save() { if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(state)); }
+try { if (typeof localStorage !== 'undefined' && localStorage.getItem(KEY)) save(); } catch (e) { /* persist one-time setups right away */ }
 export function replaceState(obj) { state = migrate(obj); save(); }
 export function resetAll() { if (typeof localStorage !== 'undefined') localStorage.removeItem(KEY); state = defaults(); save(); }
 export function resetProgram() { state.program = clone(PROGRAM); save(); }

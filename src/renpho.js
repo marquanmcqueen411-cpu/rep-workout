@@ -129,3 +129,19 @@ export function mergeBodyweight(existing, rows, mode = 'keep', { bodyComp = true
 
 /** Lean mass = weight × (1 − body fat %). */
 export const leanMass = b => (b && b.bf != null ? +(b.lb * (1 - b.bf / 100)).toFixed(1) : null);
+
+/**
+ * Next body-comp rescan (Coach Brooke: every 4 weeks, same conditions — Monday morning, after the bathroom,
+ * before eating). 28 days after the later of the last scan and the plan start, moved to the next Monday.
+ * Nov 13 scan + Nov 23 start → Mon Dec 21. Returns { next: 'YYYY-MM-DD', base } or null if no scan yet.
+ */
+export function nextRescan(bodyweight, cycleStart) {
+  const scans = (bodyweight || []).filter(b => b && b.bf != null).sort((a, b) => a.date.localeCompare(b.date));
+  if (!scans.length) return null;
+  const base = scans[scans.length - 1];
+  const from = cycleStart && cycleStart > base.date ? cycleStart : base.date;
+  const [y, m, d] = from.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + 28);
+  dt.setDate(dt.getDate() + ((8 - dt.getDay()) % 7)); // next Monday (same day if already Monday)
+  return { next: `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`, base };
+}

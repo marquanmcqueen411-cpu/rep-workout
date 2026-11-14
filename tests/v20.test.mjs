@@ -198,7 +198,7 @@ test('migration v1.9 → v2.0: history, weights, cycle, rest kept; swaps carried
     { id: 'x2', workoutId: 'L2', workoutName: 'Lower B', date: '2026-11-07', start: '2026-11-07T18:00:00.000Z', status: 'done', exercises: [{ exId: 'hip_thrust', reps: [10, 12], sets: S(225, [12, 12, 12]) }] },
   ];
   const sched = [{ type: 'steps' }, { type: 'lift', workout: 'U1' }, { type: 'rest' }, { type: 'lift', workout: 'L1' }, { type: 'class' }, { type: 'lift', workout: 'U2' }, { type: 'lift', workout: 'L2' }];
-  store.replaceState({ program: v19, sessions, settings: { schedule: sched, cycleStart: '2026-11-02', rest: { first: 165, other: 90 }, increments: { face_pull: 2.5 } }, exNotes: { hip_thrust: 'pad' } });
+  store.replaceState({ program: v19, sessions, settings: { schedule: sched, cycleStart: '2026-11-02', rest: { first: 165, other: 90 }, increments: { face_pull: 2.5 } }, exNotes: { hip_thrust: 'pad' }, oneTime: { baseline20261113: true } });
   const s = store.state;
   assert.equal(s.program.id, PROGRAM.id);
   assert.equal(s.program.workouts[0].exercises[0].ex, 'db_bench_press'); assert.equal(s.program.workouts[0].exercises[0].sets, 4);
@@ -225,5 +225,5 @@ test('check-in: deload status + RIR rules; Marquan; sw cache v2.0.0 includes del
   assert.match(c.text, /^Marquan · /m);
   store.resetAll();
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /rep-v2\.0\.0/); assert.match(sw, /\.\/src\/deload\.js/);
+  assert.match(sw, /rep-v2\.0\.1/); assert.match(sw, /\.\/src\/deload\.js/);
 });
