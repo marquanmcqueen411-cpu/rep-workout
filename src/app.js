@@ -56,13 +56,15 @@ function viewToday() {
   if (injectionStatus().status !== 'done') h += injectionCard(true);
 
   const doneToday = doneSessions().filter(s => s.date === ymd());
-  const wid = ui.choice || (sch.type === 'lift' ? sch.workout : null);
+  const first = state.program.workouts[0];
+  const preStart = pw.notStarted && !pw.early;
+  const wid = ui.choice || (preStart ? first.id : sch.type === 'lift' ? sch.workout : null);
   if (doneToday.length && !ui.choice) {
     h += `<section class="card done-card"><div class="row between"><h2>✓ ${esc(doneToday.map(s => s.workoutName).join(' + '))} done</h2></div>
       <p class="muted">${doneToday.map(s => `${s.exercises.reduce((a, e) => a + e.sets.length, 0)} sets`).join(', ')} logged. Nice work, Marquan. Hit protein and steps.</p>
       <div class="quick"><button class="btn" data-act="summary" data-id="${doneToday.at(-1).id}">View summary</button><button class="btn ghost" data-act="choose">Train another</button></div></section>`;
   } else if (wid && workoutById(wid)) {
-    h += workoutPreview(workoutById(wid), sch, pw);
+    h += workoutPreview(workoutById(wid), sch, pw, preStart && !ui.choice ? `First workout · ${fmtStart(pw.startsOn)}` : '');
   } else if (sch.type === 'steps') {
     const goalTxt = `${fmtNum(t.stepsMin)}–${fmtNum(t.stepsMax)}`;
     h += `<section class="card"><div class="eyebrow accent">Step walk day</div><h2>Walk ${goalTxt} steps</h2>
@@ -98,7 +100,7 @@ function classCard(d, isPlanned) {
     <button class="btn ghost" data-act="choose">Lift instead</button></section>`;
 }
 
-function workoutPreview(w, sch, pw) {
+function workoutPreview(w, sch, pw, eyebrow = '') {
   const bad = ui.badDay;
   const isSched = sch.type === 'lift' && sch.workout === w.id && !ui.choice;
   const slots = bad ? w.exercises.slice(0, PROGRESSION.badDayLifts) : w.exercises;
@@ -109,7 +111,7 @@ function workoutPreview(w, sch, pw) {
     return `<li data-act="info" data-ex="${slot.ex}" class="${slot.ss ? 'ss' : ''}"><div class="exnum${slot.ss ? ' ssnum' : ''}">${slot.ss ? slot.ss + slot.ssPos : liftNum(slots, i)}</div><div class="grow"><b>${esc(ex.name)}</b>
       <small>${sets} × ${rr(slot.reps)}${logKind(ex) === 'timed' && slot.note !== 'seconds' ? ' s' : ''}${slot.note ? ' ' + esc(slot.note) : ''} · ${loadText(ex, sg)}${sg.up ? ' <span class="up">▲</span>' : ''}</small></div><span class="chev">ⓘ</span></li>`;
   }).join('');
-  return `<section class="card workout-card"><div class="eyebrow accent">${isSched ? 'Scheduled' : 'Selected'} workout</div>
+  return `<section class="card workout-card"><div class="eyebrow accent" id="wpEyebrow">${eyebrow ? esc(eyebrow) : `${isSched ? 'Scheduled' : 'Selected'} workout`}</div>
     <div class="row between"><h2>${esc(w.name)}</h2><button class="link" data-act="choose">Change</button></div>
     <p class="muted">${exerciseCount(slots)} exercises · ${totalSets} sets · ${pw.deload ? 'deload: RIR 3' : 'compounds RIR 2, isolation RIR 1–2'}${slots.some(x => x.ss) ? ' · supersets alternate sets, 60 s rest' : ''}</p>
     <ol class="exlist">${rows}</ol>
@@ -424,6 +426,8 @@ function weeklySetsCard() {
 }
 
 function upcomingWorkout() {
+  const pw = programWeek();
+  if (pw.notStarted && !pw.early && !doneSessions().length) return state.program.workouts[0];
   const doneToday = new Set(doneSessions().filter(x => x.date === ymd()).map(x => x.workoutId));
   for (let i = 0; i < 7; i++) {
     const sc = scheduleFor(addDays(new Date(), i));
@@ -818,7 +822,7 @@ function viewSettings() {
     <button class="btn danger wide" data-act="resetAll">Erase all data</button>
     <p class="muted sm">${doneSessions().length} sessions · ${state.bodyweight.length} weigh-ins · ${state.dizzyEvents.length} dizziness events · ${state.injections.length} injections · ${state.supplements.length} supplements</p></section>`;
   h += `<section class="card"><h3>Safety</h3><p class="muted sm">Don't lift fasted. Eat carbs + protein 1–2 h before, drink water/electrolytes. If dizzy or lightheaded: stop, sit or lie down, sip fluids, have some fast carbs. Fainting, chest pain, or confusion → call 911. Tell your prescriber about repeated dizziness.</p>
-    <p class="muted sm">Rep v2.0.1 · personal use</p></section>`;
+    <p class="muted sm">Rep v2.0.2 · personal use</p></section>`;
   return h;
 }
 
@@ -978,6 +982,7 @@ function finishSession(status = 'done') {
   const prCount = exs.reduce((n, e) => n + e.sets.filter(s => s.pr).length, 0);
   const total = exs.reduce((n, e) => n + e.sets.length, 0);
   if (!total && status === 'done') { if (!confirm('No sets checked off. Discard this workout?')) return; state.active = null; stopTimer(); save(); wake(false); render(); return; }
+  if (!total) { state.active = null; stopTimer(); save(); wake(false); render(); toast('Session ended — no sets were logged'); return; } // dizzy stop with 0 sets: keep the dizzy note, no empty session
   const rec = { ...a, end: new Date().toISOString(), status, exercises: exs };
   delete rec.paused;
   state.sessions.push(rec); state.active = null; stopTimer(); save(); wake(false);

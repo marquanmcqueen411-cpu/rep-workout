@@ -236,5 +236,5 @@ test('v1.9.1/v2.0: user-facing text calls him Marquan, not Boss', async () => {
   }
   assert.match(fs.readFileSync(new URL('../src/app.js', import.meta.url), 'utf8'), /Nice work, Marquan\./);
   assert.match(buildCheckIn(new Date('2026-11-16T09:00:00')).text, /^Marquan · /m);
-  assert.match(fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8'), /rep-v2\.0\.1/);
+  assert.match(fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8'), /rep-v2\.0\.2/);
 });

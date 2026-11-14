@@ -1,4 +1,4 @@
-# Rep — Marquan's workout app (v2.0.1)
+# Rep — Marquan's workout app (v2.0.2)
 
 Personal, mobile-first PWA (not a Fernholt product). Plain static site: vanilla JS ES modules, no framework, no backend, no accounts. All data stays on the phone (localStorage) with JSON Export/Import in Settings.
 

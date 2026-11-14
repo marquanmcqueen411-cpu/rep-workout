@@ -763,7 +763,7 @@ await ctx.setOffline(true); await page.reload({ waitUntil: 'domcontentloaded' })
 log('ok - loads offline via service worker'); await ctx.setOffline(false);
 
 // ---- v2.0.1: one-time setup on his phone (v2.0 data, no flag) -> Nov 13 baseline + plan starts Mon Nov 23
-await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('rep-workout.v1')); delete s.oneTime; s.settings.cycleStart = '2026-11-02'; s.settings.earlyDeload = null; s.bodyweight = s.bodyweight.filter(b => b.date !== '2026-11-13' && b.date < '2026-11-13'); localStorage.setItem('rep-workout.v1', JSON.stringify(s)); });
+await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('rep-workout.v1')); delete s.oneTime; s.settings.cycleStart = '2026-11-02'; s.active = null; const t = new Date(), k = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; s.sessions = [{ id: 'mig-empty', source: 'migration', workoutId: 'U1', workoutName: 'Upper A', date: k, start: t.toISOString(), status: 'done', exercises: [] }]; Object.keys(s.daily).forEach(d => { s.daily[d].cls = false; }); s.daily[k] = { ...(s.daily[k] || {}), weight: 256 }; s.settings.earlyDeload = null; s.bodyweight = s.bodyweight.filter(b => b.date !== '2026-11-13' && b.date < '2026-11-13'); localStorage.setItem('rep-workout.v1', JSON.stringify(s)); });
 await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('.hero');
 const one = await page.evaluate(() => { const s = window.__rep.state, b = s.bodyweight.filter(x => x.date === '2026-11-13'); return { n: b.length, b: b[0], cs: s.settings.cycleStart, flag: !!s.oneTime.baseline20261113, saved: !!JSON.parse(localStorage.getItem('rep-workout.v1')).oneTime?.baseline20261113 }; });
 assert(one.n === 1 && one.b.lb === 256 && one.b.bf === 39.6 && one.b.visceral === 21 && one.b.bmr === 1872 && one.b.baseline && one.cs === '2026-11-23' && one.flag && one.saved, 'one-time baseline + plan start applied and saved ' + JSON.stringify(one));
@@ -775,6 +775,15 @@ assert(!(await page.locator('#deloadPrompt, .deload-prompt').count()), 'no deloa
 assert((await page.evaluate(() => { const R = window.__rep, pw = R.programWeek(); return R.suggest(R.state.program.workouts[0].exercises[0], { deload: pw.deload }).sets; })) === 4, 'before plan start: workouts still suggested normally (bench 4 sets)');
 await page.waitForTimeout(300);
 await page.screenshot({ path: SHOTS + '40-today-plan-starts.png' });
+// ---- v2.0.2: weigh-in only → Upper A is next and NOT done, no streak credit, no fake session
+const v202 = await page.evaluate(() => ({ n: window.__rep.state.sessions.length, removed: window.__rep.state.oneTime.cleanupEmpty20261113?.removed, done: !!document.querySelector('.done-card'), w: document.querySelector('.workout-card h2')?.textContent, eb: document.querySelector('#wpEyebrow')?.textContent, chip: document.querySelector('.weekstrip')?.closest('section')?.querySelector('.chip')?.textContent, hits: document.querySelectorAll('.weekstrip .hit').length }));
+assert(v202.n === 0 && JSON.stringify(v202.removed) === '["mig-empty"]', 'empty migration-made session cleaned up ' + JSON.stringify(v202));
+assert(!v202.done && v202.w === 'Upper A' && v202.eb === 'First workout · Mon Nov 23', 'Today: Upper A next, not done ' + JSON.stringify(v202));
+assert(v202.hits === 0 && /^0\/\d+ days · 🔥 0 wk streak$/.test(v202.chip), 'weigh-in gives no streak credit ' + JSON.stringify(v202));
+await page.evaluate(() => { document.querySelector('.workout-card').scrollIntoView({ block: 'start' }); window.scrollBy(0, -150); });
+await page.waitForTimeout(300);
+await page.screenshot({ path: SHOTS + '42-today-upper-a-not-done.png' });
+await page.evaluate(() => window.scrollTo(0, 0));
 await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('.hero');
 assert((await page.evaluate(() => window.__rep.state.bodyweight.filter(x => x.date === '2026-11-13').length)) === 1, 'reload does not add a second baseline');
 await page.click('.tabbar [data-tab=progress]');

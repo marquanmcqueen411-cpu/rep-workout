@@ -24,7 +24,7 @@ export function earlyDeloadOn(early, date = new Date()) {
 /** First-lift drops: per workout, best score fell in each of the last 2 sessions (since the last deload). */
 export function firstLiftDrops(st) {
   const out = [];
-  const done = (st.sessions || []).filter(s => s.status === 'done' || s.status === 'ended').sort((a, b) => (b.start || '').localeCompare(a.start || ''));
+  const done = (st.sessions || []).filter(s => (s.status === 'done' || s.status === 'ended') && (s.exercises || []).some(e => (e.sets || []).length)).sort((a, b) => (b.start || '').localeCompare(a.start || ''));
   const lastDeload = done.find(s => s.deload);
   const since = lastDeload ? lastDeload.start : '';
   for (const w of st.program.workouts || []) {

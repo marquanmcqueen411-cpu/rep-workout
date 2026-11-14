@@ -58,7 +58,7 @@ function defaults() {
     savedMeals: [],
     recentFoods: [],
     exNotes: {},           // sticky per-exercise setup notes (seat height, pins, grip)
-    oneTime: { baseline20261113: { skipped: 'fresh install' } }, // one-time setups already handled (see applyOneTime)
+    oneTime: { baseline20261113: { skipped: 'fresh install' }, cleanupEmpty20261113: { skipped: 'fresh install' } }, // one-time setups already handled (see applyOneTime)
   };
 }
 
@@ -131,8 +131,26 @@ export const BASELINE_20261113 = {
   source: 'renpho', baseline: true,
 };
 export const PLAN_START_20261123 = '2026-11-23';
+/** A session counts only with at least one logged set. */
+const setCount = x => (x && Array.isArray(x.exercises) ? x.exercises : []).reduce((n, e) => n + (Array.isArray(e && e.sets) ? e.sets.length : 0), 0);
+const MACHINE_MADE = x => !!x && (['migration', 'setup', 'seed', 'sample', 'onetime'].includes(x.source) || x.migrated === true || x.setup === true || x.seeded === true || /^(seed|mig|setup|onetime)/.test(String(x.id || '')));
+/**
+ * cleanupEmpty20261113 (v2.0.2, once): drop sessions that have ZERO logged sets AND were made by
+ * migration/setup/sample code. A session with any logged set is never touched; nor is one the user made.
+ */
+export function cleanupEmptySessions(out) {
+  if (out.oneTime.cleanupEmpty20261113) return out;
+  const removed = [];
+  out.sessions = (Array.isArray(out.sessions) ? out.sessions : []).filter(x => {
+    if (setCount(x) === 0 && MACHINE_MADE(x)) { removed.push(String(x.id)); return false; }
+    return true;
+  });
+  out.oneTime.cleanupEmpty20261113 = { at: new Date().toISOString(), removed };
+  return out;
+}
 export function applyOneTime(out) {
   if (!out.oneTime || typeof out.oneTime !== 'object' || Array.isArray(out.oneTime)) out.oneTime = {};
+  cleanupEmptySessions(out);
   if (out.oneTime.baseline20261113) return out;
   const done = { at: new Date().toISOString(), addedBaseline: false, cycleStart: { from: out.settings.cycleStart, to: PLAN_START_20261123 } };
   if (!out.bodyweight.some(b => b && b.date === BASELINE_20261113.date)) {

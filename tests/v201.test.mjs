@@ -85,5 +85,5 @@ test('rescan: every 4 weeks after the later of last scan / plan start, on a Mond
   assert.equal(nextRescan([{ date: '2026-10-23', lb: 255 }], '2026-11-23'), null, 'no scan → no note');
   assert.equal(nextRescan([{ date: '2026-11-11', lb: 255, bf: 40 }], '2026-11-02').next, '2026-12-14', 'Wed scan → Monday after +28 d');
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /rep-v2\.0\.1/);
+  assert.match(sw, /rep-v2\.0\.2/);
 });

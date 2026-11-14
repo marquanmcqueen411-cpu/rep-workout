@@ -8,7 +8,9 @@ export const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const WD_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export const workoutById = id => state.program.workouts.find(w => w.id === id);
-export const doneSessions = () => state.sessions.filter(s => s.status === 'done' || s.status === 'ended');
+export const loggedSets = s => (s && Array.isArray(s.exercises) ? s.exercises : []).reduce((n, e) => n + (Array.isArray(e && e.sets) ? e.sets.length : 0), 0);
+// v2.0.2: only sessions with real logged sets count as done (Today card, streak, rotation, progression)
+export const doneSessions = () => state.sessions.filter(s => (s.status === 'done' || s.status === 'ended') && loggedSets(s) > 0);
 
 export function round(w) {
   if (w == null) return null;

@@ -225,5 +225,5 @@ test('check-in: deload status + RIR rules; Marquan; sw cache v2.0.0 includes del
   assert.match(c.text, /^Marquan · /m);
   store.resetAll();
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /rep-v2\.0\.1/); assert.match(sw, /\.\/src\/deload\.js/);
+  assert.match(sw, /rep-v2\.0\.2/); assert.match(sw, /\.\/src\/deload\.js/);
 });
