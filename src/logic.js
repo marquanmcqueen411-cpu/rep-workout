@@ -2,6 +2,7 @@ import { state, ymd, parseYmd, mondayOf, addDays } from './store.js';
 import { exercise } from './exercises.js';
 import { PROGRESSION } from './program.js';
 import { suggestNext, defaultIncrement, e1rm, weekOf, bwOn, relStrength, setScore, logKind } from './progression.js';
+import { earlyDeloadOn, deloadTriggers, settleEarlyDeload } from './deload.js';
 
 export const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const WD_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -17,7 +18,21 @@ export function round(w) {
 
 // ---- Program week / deload (DST-safe)
 export function programWeek(date = new Date()) {
-  return weekOf(state.settings.cycleStart, date, state.program.cycleWeeks || 6, state.program.deloadWeek || 6, state.settings.deloadEnabled);
+  settleEarlyDeload(state.settings, date);
+  const pw = weekOf(state.settings.cycleStart, date, state.program.cycleWeeks || 6, state.program.deloadWeek || 6, state.settings.deloadEnabled);
+  const e = state.settings.earlyDeload;
+  if (earlyDeloadOn(e, date)) return { ...pw, deload: true, early: true, reason: e.reason };
+  return { ...pw, early: false, reason: pw.deload ? `Planned week ${pw.week} deload` : '' };
+}
+/** Reasons to start an early deload today (not shown while a deload is on or after he dismissed these exact reasons today). */
+export function deloadPrompt(date = new Date()) {
+  const pw = programWeek(date);
+  const reasons = deloadTriggers(state, date, { plannedDeload: pw.deload });
+  if (!reasons.length) return null;
+  const key = reasons.map(r => r.key).sort().join('|');
+  const dis = state.settings.deloadDismissed;
+  if (dis && dis.key === key && dis.date === ymd(date)) return null;
+  return { reasons, key };
 }
 
 // ---- Rotation / schedule

@@ -16,18 +16,19 @@ const S = (w, reps) => reps.map(r => ({ weight: w, reps: r }));
 const H = (sets, o = {}) => ({ date: '2026-11-10', deload: false, badDay: false, sets, ...o });
 const slotOf = id => PROGRAM.workouts.flatMap(w => w.exercises).find(x => x.ex === id);
 
-test('program: Brooke 4-day split, 5 lifts × 3 sets each, exact order + rep ranges', () => {
-  const plan = Object.fromEntries(PROGRAM.workouts.map(w => [w.name, w.exercises.map(x => `${x.ex} ${x.reps.join('-')}`)]));
+test('program (v2.0 final): Brooke 4-day split, exact order, sets × reps, supersets', () => {
+  const plan = Object.fromEntries(PROGRAM.workouts.map(w => [w.name, w.exercises.map(x => `${x.ss ? x.ss + x.ssPos + ' ' : ''}${x.ex} ${x.sets}x${x.reps.join('-')}`)]));
   assert.deepEqual(plan, {
-    'Upper A': ['bench_press 6-8', 'chest_supported_row 8-10', 'seated_db_shoulder_press 8-10', 'lat_pulldown 10-12', 'cable_triceps_pushdown 12-15'],
-    'Lower A': ['box_squat 6-8', 'romanian_deadlift 8-10', 'leg_press 10-12', 'seated_leg_curl 10-12', 'calf_raise 12-15'],
-    'Upper B': ['incline_db_press 8-10', 'assisted_pullup 6-10', 'seated_cable_row 10-12', 'cable_lateral_raise 12-15', 'db_curl 10-12'],
-    'Lower B': ['trap_bar_deadlift 6-8', 'split_squat 8-10', 'hip_thrust 10-12', 'leg_extension 12-15', 'plank 30-45'],
+    'Upper A': ['bench_press 4x6-8', 'chest_supported_row 3x8-10', 'seated_db_shoulder_press 3x8-10', 'lat_pulldown 3x10-12', 'A1 cable_triceps_pushdown 3x12-15', 'A2 db_curl 3x10-12'],
+    'Lower A': ['box_squat 3x6-8', 'romanian_deadlift 3x8-10', 'leg_press 3x10-12', 'seated_leg_curl 3x10-12', 'calf_raise 3x12-15'],
+    'Upper B': ['incline_db_press 3x8-10', 'assisted_pullup 3x6-10', 'cable_fly 3x12-15', 'A1 cable_lateral_raise 3x12-15', 'A2 face_pull 3x12-15', 'B1 overhead_cable_extension 3x10-12', 'B2 cable_curl 3x10-12'],
+    'Lower B': ['trap_bar_deadlift 3x6-8', 'split_squat 3x8-10', 'lying_leg_curl 3x10-12', 'leg_extension 3x12-15', 'A1 seated_calf_raise 3x12-15', 'A2 plank 3x30-45'],
   });
-  assert.ok(PROGRAM.workouts.every(w => w.exercises.every(x => x.sets === 3)));
+  const all = PROGRAM.workouts.flatMap(w => w.exercises.map(x => x.ex));
+  assert.ok(!all.includes('seated_cable_row') && !all.includes('hip_thrust'), 'seated cable row + hip thrust removed');
   assert.deepEqual(PROGRAM.workouts.map(w => w.id), ['U1', 'L1', 'U2', 'L2'], 'workout ids unchanged so history + rotation carry over');
   assert.equal(PROGRAM.deloadWeek, 6); assert.equal(PROGRAM.rir, 2);
-  assert.deepEqual(DEFAULT_REST, { first: 150, other: 90 });
+  assert.deepEqual(DEFAULT_REST, { first: 150, other: 90, superset: 60 });
   for (const w of PROGRAM.workouts) for (const x of w.exercises) assert.ok(exercise(x.ex).cues.length, `${x.ex} exists with cues`);
 });
 
@@ -112,7 +113,7 @@ test("Coach Brooke's ranked swaps for the new lifts, in her order", () => {
     plank: ['dead_bug', 'pallof_press', 'side_plank'],
   };
   for (const [id, list] of Object.entries(want)) assert.deepEqual(DRE_SWAPS[id], list, id);
-  assert.equal(Object.keys(DRE_SWAPS).length, 20);
+  assert.equal(Object.keys(DRE_SWAPS).length, 26);
   // every lift in the plan now has 3 swaps
   for (const w of PROGRAM.workouts) for (const x of w.exercises) assert.equal(alternatives(x.ex).length, 3, x.ex);
 });
@@ -140,7 +141,7 @@ test('swaps keep the slot reps; plank swaps keep their own targets', () => {
   assert.deepEqual(swapTarget('plank', 'side_plank', { current: [30, 45] }), { reps: [20, 30], note: 'per side' });
   // leaving a plank swap goes back to the plan target, not 8/side
   assert.deepEqual(swapTarget('dead_bug', 'plank', { current: [8, 8], original: [30, 45] }).reps, [30, 45]);
-  assert.deepEqual(programSlotReps('L2', 4), [30, 45]);
+  assert.deepEqual(programSlotReps('L2', 5), [30, 45]);
   // suggestions: no weight carry-over; reps-only / timed swaps need no weight
   const sp = swapSuggestion('plank', 'side_plank', { sets: 3, reps: [30, 45] });
   assert.deepEqual(sp.weights, [0, 0, 0]);
@@ -192,7 +193,7 @@ test('migration: v1 plan → 4-day split; history, weights, cycle and permanent 
   store.replaceState({ program: v1Program(), sessions, settings: { schedule: v1Schedule(), cycleStart: '2026-10-26', rest: { first: 165, other: 90 } }, bodyweight: [{ date: '2026-10-23', lb: 255 }] });
   const s = store.state;
   assert.equal(s.program.id, PROGRAM.id);
-  assert.equal(s.program.workouts[0].exercises.length, 5);
+  assert.equal(s.program.workouts[0].exercises.length, 6);
   assert.equal(s.sessions.length, 2, 'all sessions kept');
   assert.equal(s.sessions[0].exercises[0].sets[0].weight, 180, 'weights untouched');
   assert.equal(s.settings.cycleStart, '2026-10-26', 'cycle position kept');
@@ -226,4 +227,14 @@ test('check-in: step days come from the schedule (Thu/Sun), no old wording', () 
   assert.match(c.text, /Steps on Thu\/Sun: not logged/);
   assert.doesNotMatch(c.text, /Tue\/Thu\/Sun/);
   store.resetAll();
+});
+
+test('v1.9.1/v2.0: user-facing text calls him Marquan, not Boss', async () => {
+  const fs = await import('node:fs');
+  for (const f of ['src/app.js', 'src/checkin.js', 'manifest.json', 'index.html']) {
+    assert.doesNotMatch(fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8'), /\bBoss\b/, f);
+  }
+  assert.match(fs.readFileSync(new URL('../src/app.js', import.meta.url), 'utf8'), /Nice work, Marquan\./);
+  assert.match(buildCheckIn(new Date('2026-11-16T09:00:00')).text, /^Marquan · /m);
+  assert.match(fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8'), /rep-v2\.0\.0/);
 });

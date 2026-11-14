@@ -2,8 +2,9 @@ import { state, save, ymd, parseYmd, mondayOf, addDays, day, replaceState, reset
 import { EXERCISES, MUSCLES, exercise, demoUrl, watchUrl, embedUrl } from './exercises.js';
 import { PROGRAM, PROGRESSION, BODYWEIGHT, SUPP_TIMINGS } from './program.js';
 import { WD, WD_LONG, workoutById, doneSessions, programWeek, scheduleFor, nextInRotation, suggest, fmtW,
-  historyFor, e1rm, recovery, recColor, streak, trainingDays, round, suppAdherence, suppStreak, injectionStatus, injLine, incFor, priorSets, exStats } from './logic.js';
-import { warmups, equipOf, EQUIP_LABEL, defaultIncrement, detectPRs, e1rm as epley, logKind, setScore, bwOn } from './progression.js';
+  historyFor, e1rm, recovery, recColor, streak, trainingDays, round, suppAdherence, suppStreak, injectionStatus, injLine, incFor, priorSets, exStats, deloadPrompt } from './logic.js';
+import { startEarlyDeload } from './deload.js';
+import { warmups, equipOf, EQUIP_LABEL, defaultIncrement, detectPRs, e1rm as epley, logKind, setScore, bwOn, targetRir } from './progression.js';
 import { bodySvg } from './body.js';
 import { lineChart, barChart } from './charts.js';
 import { parseRenpho, mergeBodyweight, leanMass } from './renpho.js';
@@ -46,8 +47,9 @@ function viewToday() {
   const d = day();
   const t = state.settings.targets;
   let h = `<header class="hero"><div class="eyebrow">${WD_LONG[now.getDay()]}, ${now.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</div>
-    <h1>Today</h1><div class="chips"><span class="chip ${pw.deload ? 'warn' : ''}">Week ${pw.week} of ${pw.of}${pw.deload ? ' · DELOAD' : ''}</span><span class="chip">Cycle ${pw.cycle}</span><span class="chip">RIR 2</span></div></header>`;
-  if (pw.deload) h += `<div class="banner deload"><b>Deload week.</b> ~60% volume: 2 sets per lift at ~90% weight. Recover, move well, keep protein high.</div>`;
+    <h1>Today</h1><div class="chips"><span class="chip ${pw.deload ? 'warn' : ''}">Week ${pw.week} of ${pw.of}${pw.deload ? ' · DELOAD' : ''}</span><span class="chip">Cycle ${pw.cycle}</span><span class="chip">${pw.deload ? 'RIR 3' : 'RIR 2 · iso 1–2'}</span></div></header>`;
+  if (pw.deload) h += `<div class="banner deload"><b>${pw.early ? 'Early deload' : 'Deload week'}.</b> 2 sets per lift, same weights, stop 3 reps short (RIR 3). Recover, move well, keep protein high.${pw.early && pw.reason ? `<br><small>Why: ${esc(pw.reason)}</small>` : ''}</div>`;
+  h += deloadPromptCard();
   h += weighInCard();
   h += checkInCard();
   h += backupReminderCard();
@@ -57,7 +59,7 @@ function viewToday() {
   const wid = ui.choice || (sch.type === 'lift' ? sch.workout : null);
   if (doneToday.length && !ui.choice) {
     h += `<section class="card done-card"><div class="row between"><h2>✓ ${esc(doneToday.map(s => s.workoutName).join(' + '))} done</h2></div>
-      <p class="muted">${doneToday.map(s => `${s.exercises.reduce((a, e) => a + e.sets.length, 0)} sets`).join(', ')} logged. Nice work, Boss. Hit protein and steps.</p>
+      <p class="muted">${doneToday.map(s => `${s.exercises.reduce((a, e) => a + e.sets.length, 0)} sets`).join(', ')} logged. Nice work, Marquan. Hit protein and steps.</p>
       <div class="quick"><button class="btn" data-act="summary" data-id="${doneToday.at(-1).id}">View summary</button><button class="btn ghost" data-act="choose">Train another</button></div></section>`;
   } else if (wid && workoutById(wid)) {
     h += workoutPreview(workoutById(wid), sch, pw);
@@ -100,15 +102,16 @@ function workoutPreview(w, sch, pw) {
   const bad = ui.badDay;
   const isSched = sch.type === 'lift' && sch.workout === w.id && !ui.choice;
   const slots = bad ? w.exercises.slice(0, PROGRESSION.badDayLifts) : w.exercises;
+  let totalSets = 0;
   const rows = slots.map((slot, i) => {
     const ex = exercise(slot.ex); const sg = suggest(slot, { deload: pw.deload });
-    const sets = bad ? Math.min(PROGRESSION.badDaySets, sg.sets) : sg.sets;
-    return `<li data-act="info" data-ex="${slot.ex}"><div class="exnum">${i + 1}</div><div class="grow"><b>${esc(ex.name)}</b>
+    const sets = bad ? Math.min(PROGRESSION.badDaySets, sg.sets) : sg.sets; totalSets += sets;
+    return `<li data-act="info" data-ex="${slot.ex}" class="${slot.ss ? 'ss' : ''}"><div class="exnum${slot.ss ? ' ssnum' : ''}">${slot.ss ? slot.ss + slot.ssPos : liftNum(slots, i)}</div><div class="grow"><b>${esc(ex.name)}</b>
       <small>${sets} × ${rr(slot.reps)}${logKind(ex) === 'timed' && slot.note !== 'seconds' ? ' s' : ''}${slot.note ? ' ' + esc(slot.note) : ''} · ${loadText(ex, sg)}${sg.up ? ' <span class="up">▲</span>' : ''}</small></div><span class="chev">ⓘ</span></li>`;
   }).join('');
   return `<section class="card workout-card"><div class="eyebrow accent">${isSched ? 'Scheduled' : 'Selected'} workout</div>
     <div class="row between"><h2>${esc(w.name)}</h2><button class="link" data-act="choose">Change</button></div>
-    <p class="muted">${slots.length} lifts · ${bad ? 2 : (pw.deload ? 2 : 3)} sets each · leave 2 reps in reserve</p>
+    <p class="muted">${exerciseCount(slots)} exercises · ${totalSets} sets · ${pw.deload ? 'deload: RIR 3' : 'compounds RIR 2, isolation RIR 1–2'}${slots.some(x => x.ss) ? ' · supersets alternate sets, 60 s rest' : ''}</p>
     <ol class="exlist">${rows}</ol>
     <label class="toggle"><input type="checkbox" data-change="badDayPre" ${bad ? 'checked' : ''}><span></span>Bad day mode <small>(first 2 lifts, 2 sets each)</small></label>
     <button class="btn primary xl" data-act="precheck" data-w="${w.id}">Start ${esc(w.name)}</button></section>`;
@@ -171,19 +174,23 @@ function visible(a) {
 function viewWorkout() {
   const a = state.active;
   let h = `<div class="safety" role="status"><span>⚠️ Dizzy? <b>Stop. Sit. Sip fluids.</b></span><button class="btn danger sm" data-act="dizzy">I feel dizzy</button></div>`;
-  h += `<header class="hero tight"><div class="eyebrow">Week ${a.week}${a.deload ? ' · DELOAD' : ''} · RIR 2</div>
+  h += `<header class="hero tight"><div class="eyebrow">Week ${a.week}${a.deload ? ' · DELOAD · RIR 3' : ' · RIR 2 · iso 1–2'}</div>
     <div class="row between"><h1>${esc(a.workoutName)}</h1><span class="clock" id="elapsed">0:00</span></div>
     <label class="toggle"><input type="checkbox" data-change="badDay" ${a.badDay ? 'checked' : ''}><span></span>Bad day <small>(2 lifts × 2 sets)</small></label></header>`;
-  if (a.deload) h += `<div class="banner deload"><b>Deload:</b> 2 sets at ~90% weight. Smooth reps, no grinding.</div>`;
+  if (a.deload) h += `<div class="banner deload"><b>Deload:</b> 2 sets, same weights, stop 3 reps short (RIR 3). Smooth reps, no grinding.</div>`;
   if (a.paused) h += `<div class="banner danger"><b>Session paused</b> — dizziness logged. Only resume once fully recovered. <button class="btn sm" data-act="dizzyResume">Resume</button></div>`;
-  visible(a).forEach(({ e, sets }, i) => {
+  const vis = visible(a);
+  vis.forEach(({ e, sets }, i) => {
     const ex = exercise(e.exId); const sg = e.suggestion;
-    const rest = i === 0 ? state.settings.rest.first : state.settings.rest.other;
+    const rest = restFor(vis, i);
     const prev = lastSets(e.exId); const note = (state.exNotes || {})[e.exId];
-    h += `<section class="card ex"><div class="row between top"><div><div class="eyebrow">Lift ${i + 1} · rest ${fmtSec(rest)}</div>
+    const tr = a.deload ? { label: 'RIR 3' } : targetRir(ex);
+    const ssMate = e.ss ? vis.find((x, k) => k !== i && x.e.ss === e.ss) : null;
+    if (e.ss && e.ssPos === 1) h += `<div class="ssgroup" data-ss="${e.ss}"><div class="sshead"><span class="chip accent">Superset ${e.ss}</span><span class="muted sm">Alternate ${e.ss}1 / ${e.ss}2 sets · ${fmtSec(state.settings.rest.superset || 60)} rest between moves</span></div>`;
+    h += `<section class="card ex${e.ss ? ' ssmember' : ''}"><div class="row between top"><div><div class="eyebrow">${e.ss ? `${e.ss}${e.ssPos} · superset` : `Lift ${liftNum(vis.map(x => x.e), i)}`} · rest ${fmtSec(rest)}</div>
       <h2>${esc(ex.name)}</h2><div class="muted sm">${esc(ex.equipment)}${ex.perHand ? ' · weight per dumbbell' : ''}</div></div>
       <div class="exbtns"><button class="icon" data-act="info" data-ex="${e.exId}" aria-label="Form cues">ⓘ</button><button class="icon" data-act="exHist" data-ex="${e.exId}" aria-label="History">📈</button><button class="icon" data-act="swap" data-i="${i}" aria-label="Swap exercise">⇄</button></div></div>
-      <div class="chips"><span class="chip accent">${logKind(ex) === 'timed' ? `${rr(e.reps)} s hold${e.note && e.note !== 'seconds' ? ' ' + esc(e.note) : ''}` : `${rr(e.reps)} reps${e.note ? ' ' + esc(e.note) : ''}`}</span><span class="chip">RIR 2</span></div>
+      <div class="chips"><span class="chip accent">${logKind(ex) === 'timed' ? `${rr(e.reps)} s hold${e.note && e.note !== 'seconds' ? ' ' + esc(e.note) : ''}` : `${rr(e.reps)} reps${e.note ? ' ' + esc(e.note) : ''}`}</span><span class="chip">${tr.label}</span>${ssMate ? `<span class="chip sm">then ${esc(ssMate.e.ss + ssMate.e.ssPos)} ${esc(exercise(ssMate.e.exId).name)}</span>` : ''}</div>
       <button class="exnote ${note ? 'has' : ''}" data-act="exNote" data-ex="${e.exId}">📝 ${note ? esc(note) : 'Add setup note <small>(seat, pins, grip)</small>'}</button>
       <div class="suggest k-${sg.kind || 'reps'}" data-kind="${sg.kind || ''}"><span class="sg-ico">${KIND_ICON[sg.kind] || '→'}</span><span>${esc(sg.text)}${a.badDay && !a.deload ? ' <b>Bad day: 2 sets, not counted for progression.</b>' : ''}</span></div>
       ${sg.stall ? `<button class="btn ghost sm" data-act="swap" data-i="${i}">⇄ Swap variation instead</button>` : ''}
@@ -191,6 +198,7 @@ function viewWorkout() {
       ${i === 0 && logKind(ex) === 'weight' ? warmRow(e, sets) : ''}
       <div class="sethead"><span>Set</span><span>${({ assisted: 'Assist (lb) · 0 = BW', timed: 'Bodyweight', reps: 'Bodyweight / band' })[logKind(ex)] || `Weight (lb${ex.perHand ? '/hand' : ''})`}</span><span>${logKind(ex) === 'timed' ? 'Seconds' : 'Reps'}</span><span></span></div>
       ${sets.map((s, j) => setRow(i, j, s, e, prev)).join('')}</section>`;
+    if (e.ss && e.ssPos === 2) h += `</div>`;
   });
   h += `<div class="finish"><button class="btn primary xl" data-act="finish">Finish workout</button><button class="btn ghost" data-act="discard">Discard</button></div>`;
   return h;
@@ -742,10 +750,13 @@ function viewSettings() {
   h += `<section class="card"><h3>Program cycle</h3><p class="muted sm">Currently week ${pw.week} of ${pw.of}${pw.deload ? ' (deload)' : ''}. Week ${state.program.deloadWeek} is a deload.</p>
     <div class="frow"><label>Week 1 started</label><input class="inp" type="date" data-change="cycleStart" aria-label="Program week 1 start date" value="${s.cycleStart}"></div>
     <label class="toggle"><input type="checkbox" data-change="deloadEnabled" ${s.deloadEnabled ? 'checked' : ''}><span></span>Deload on week ${state.program.deloadWeek}</label>
-    <button class="btn ghost" data-act="newCycle">Start new cycle this week</button></section>`;
+    <button class="btn ghost" data-act="newCycle">Start new cycle this week</button>
+    ${pw.early ? `<p class="muted sm">Early deload on since ${esc(s.earlyDeload.from)} — ${esc(pw.reason || '')}</p><button class="btn ghost" data-act="endDeload">End early deload</button>`
+      : pw.deload ? '' : `<p class="muted sm">Deload early if a day's first lift drops 2 sessions in a row, sleep tanks or you feel dizzy.</p><button class="btn" data-act="startDeload">Start deload now (7 days)</button>`}</section>`;
   h += `<section class="card"><h3>Rest timer</h3>
     <div class="frow"><label>First lift <b>${fmtSec(s.rest.first)}</b></label><input type="range" min="120" max="180" step="15" data-change="restFirst" aria-label="First lift rest seconds" value="${s.rest.first}"></div>
     <div class="frow"><label>Other lifts <b>${fmtSec(s.rest.other)}</b></label><input type="range" min="45" max="180" step="15" data-change="restOther" aria-label="Other lifts rest seconds" value="${s.rest.other}"></div>
+    <div class="frow"><label>Superset moves <b>${fmtSec(s.rest.superset || 60)}</b></label><input type="range" min="30" max="120" step="15" data-change="restSuperset" aria-label="Superset rest seconds" value="${s.rest.superset || 60}"></div>
     <label class="toggle"><input type="checkbox" data-change="sound" ${s.sound ? 'checked' : ''}><span></span>Sound at end</label>
     <label class="toggle"><input type="checkbox" data-change="vibrate" ${s.vibrate ? 'checked' : ''}><span></span>Vibrate at end</label>
     <label class="toggle"><input type="checkbox" data-change="voice" ${s.voice !== false ? 'checked' : ''}><span></span>Voice: “Rest over, next set”</label>
@@ -797,7 +808,7 @@ function viewSettings() {
     <button class="btn danger wide" data-act="resetAll">Erase all data</button>
     <p class="muted sm">${doneSessions().length} sessions · ${state.bodyweight.length} weigh-ins · ${state.dizzyEvents.length} dizziness events · ${state.injections.length} injections · ${state.supplements.length} supplements</p></section>`;
   h += `<section class="card"><h3>Safety</h3><p class="muted sm">Don't lift fasted. Eat carbs + protein 1–2 h before, drink water/electrolytes. If dizzy or lightheaded: stop, sit or lie down, sip fluids, have some fast carbs. Fainting, chest pain, or confusion → call 911. Tell your prescriber about repeated dizziness.</p>
-    <p class="muted sm">Rep v1.9.0 · personal use</p></section>`;
+    <p class="muted sm">Rep v2.0.0 · personal use</p></section>`;
   return h;
 }
 
@@ -816,7 +827,7 @@ function infoSheet(id) {
   sheet(`<div class="eyebrow accent">${esc(ex.equipment)}</div><h2>${esc(ex.name)}</h2>
     <div class="minibody">${bodySvg('front', col, { cls: 'sm' })}${bodySvg('back', col, { cls: 'sm' })}</div>
     <div class="chips">${ex.primary.map(m => `<span class="chip accent">${MUSCLES[m]}</span>`).join('')}${ex.secondary.map(m => `<span class="chip">${MUSCLES[m]}</span>`).join('')}</div>
-    <h3>Form cues</h3><ol class="cues">${ex.cues.map(c => `<li>${esc(c)}</li>`).join('')}<li><b>RIR 2:</b> stop each set with ~2 good reps left.</li></ol>
+    <h3>Form cues</h3><ol class="cues">${ex.cues.map(c => `<li>${esc(c)}</li>`).join('')}<li><b>${esc(targetRir(ex).label)}:</b> ${ex.isolation ? 'isolation — stop each set with 1–2 good reps left.' : 'stop each set with ~2 good reps left.'}</li></ol>
     <button class="btn primary wide" data-act="demo" data-ex="${ex.id}">▶ Demo</button>
     <button class="btn wide" data-act="exHist" data-ex="${ex.id}">📈 History &amp; PRs</button>
     <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
@@ -834,7 +845,7 @@ function demoSheet(id) {
     <p class="muted sm">${esc(ex.video.channel)} · ${esc(ex.video.title)}</p>`;
   sheet(`<div class="eyebrow accent">Demo</div><h2>${esc(ex.name)}</h2>
     ${media}
-    <h3>Form cues</h3><ol class="cues">${ex.cues.map(c => `<li>${esc(c)}</li>`).join('')}<li><b>RIR 2:</b> stop each set with ~2 good reps left.</li></ol>
+    <h3>Form cues</h3><ol class="cues">${ex.cues.map(c => `<li>${esc(c)}</li>`).join('')}<li><b>${esc(targetRir(ex).label)}:</b> ${ex.isolation ? 'isolation — stop each set with 1–2 good reps left.' : 'stop each set with ~2 good reps left.'}</li></ol>
     <a class="btn ghost wide" href="${yt}" target="_blank" rel="noopener">Open in YouTube</a>
     <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   const frame = document.querySelector('.demo-frame');
@@ -842,6 +853,36 @@ function demoSheet(id) {
     const wrap = document.querySelector('.demo-wrap');
     if (wrap) wrap.outerHTML = `<div class="demo-offline" role="status">Video needs signal — cues below</div>`;
   });
+}
+
+/** Lift number with each superset counted once (Brooke numbers Upper A 1–5). */
+function liftNum(list, i) {
+  let n = 0;
+  for (let k = 0; k <= i; k++) { const x = list[k]; if (!x.ss || x.ssPos === 1 || !list.some((y, m) => m < k && y.ss === x.ss)) n++; }
+  return n;
+}
+function exerciseCount(slots) { return slots.length; }
+/** Rest after a set of lift i: first lift 2–3 min, superset moves 60 s, other lifts 90 s. */
+function restFor(vis, i) {
+  const e = vis[i].e; const r = state.settings.rest;
+  if (e.ss) return r.superset || 60;
+  return i === 0 ? r.first : r.other;
+}
+/** After finishing set j of lift i: who's next in a superset (A1 → A2, A2 → A1 next set). */
+function supersetNext(vis, i, j) {
+  const e = vis[i].e; if (!e.ss) return null;
+  const k = vis.findIndex((x, m) => m !== i && x.e.ss === e.ss); if (k < 0) return null;
+  const mate = vis[k];
+  const nextJ = mate.sets.findIndex(x => !x.done); // alternate: the partner's next open set
+  if (nextJ < 0) { const own = vis[i].sets.findIndex(x => !x.done); return own >= 0 ? { i, j: own, label: `${e.ss}${e.ssPos} ${exercise(e.exId).name} · set ${own + 1}` } : null; }
+  return { i: k, j: nextJ, label: `${mate.e.ss}${mate.e.ssPos} ${exercise(mate.e.exId).name} · set ${nextJ + 1}` };
+}
+function deloadPromptCard() {
+  const p = deloadPrompt(); if (!p) return '';
+  return `<section class="card deload-prompt" id="deloadPrompt"><div class="eyebrow warn">Coach Brooke deload rule</div><h3>Start a deload now?</h3>
+    <ul class="reasons">${p.reasons.map(r => `<li>${esc(r.text)}</li>`).join('')}</ul>
+    <p class="muted sm">7 days: 2 sets per lift, same weights, stop 3 reps short (RIR 3). Then a new 6-week cycle starts.</p>
+    <div class="quick"><button class="btn primary" data-act="startDeload">Start deload</button><button class="btn ghost" data-act="dismissDeload" data-key="${esc(p.key)}">Not now</button></div></section>`;
 }
 
 /** "8–10", or "8" when the range is a single number (Brooke's dead bug 3×8/side). */
@@ -862,7 +903,7 @@ function swapSheet(i) {
     return `<li data-act="doSwap" data-i="${i}" data-ex="${e.id}"><span class="exnum">${n}</span><div class="grow"><b>${esc(e.name)}</b><small>${esc(e.equipment)}${hasHist ? ' · own history' : ' · pick starting weight'}</small>${tag}</div></li>`;
   };
   sheet(`<div class="eyebrow accent">Coach Brooke swaps</div><h2>Swap ${esc(exercise(cur.exId).name)}</h2>
-    <p class="muted sm">Same reps · 3 sets · RIR 2. Each swap logs its own weight. Today only unless you make it permanent.</p>
+    <p class="muted sm">Same sets · reps · RIR. Each swap logs its own weight. Today only unless you make it permanent.</p>
     <label class="toggle"><input type="checkbox" id="swapSave"><span></span>Make permanent in the plan</label>
     <ul class="picker">${back.map(e => item(e, '↩')).join('')}${ranked.map((e, n) => item(e, n + 1)).join('') || '<li class="muted">Coach Brooke hasn\'t listed swaps for this lift — ask Brooke if the machine is taken.</li>'}${home.map(e => item(e, '⌂')).join('')}</ul>
     <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
@@ -917,7 +958,7 @@ function startSession() {
 }
 function buildEx(slot, deload) {
   const sg = suggest(slot, { deload });
-  return { exId: slot.ex, reps: slot.reps, note: slot.note || '', suggestion: sg,
+  return { exId: slot.ex, reps: slot.reps, note: slot.note || '', suggestion: sg, ...(slot.ss ? { ss: slot.ss, ssPos: slot.ssPos } : {}),
     sets: Array.from({ length: sg.sets }, (_, j) => ({ weight: sg.weights[j] ?? '', reps: sg.targets[j] ?? '', done: false, rir: null })) };
 }
 function finishSession(status = 'done') {
@@ -1046,7 +1087,7 @@ const actions = {
       vis[i].sets.forEach((x, k) => { if (k > j && !x.done && x.weight === '') x.weight = s.weight; });
       const last = i === vis.length - 1 && vis[i].sets.every(x => x.done);
       if (last) { state.timer = null; toast('All sets done — tap Finish 💪'); }
-      else if (!a.paused) startTimer(i === 0 ? state.settings.rest.first : state.settings.rest.other, exercise(vis[i].e.exId).name);
+      else if (!a.paused) { const nx = supersetNext(vis, i, j); startTimer(restFor(vis, i), nx ? `next: ${nx.label}` : `next: ${exercise(vis[i].e.exId).name}`); }
       if (navigator.vibrate && state.settings.vibrate) navigator.vibrate(30);
     } else { s.done = false; s.pr = []; s.rir = null; }
     save(); render();
@@ -1065,18 +1106,25 @@ const actions = {
     const tgt = swapTarget(fromId, toId, { current: entry.reps || base.reps, original });
     const planNote = (PROGRAM_NOTE(a.workoutId, idx));
     const note = tgt.note != null ? tgt.note : (exercise(fromId).swapReps ? planNote : (entry.note || base.note || ''));
-    const slot = { sets: 3, reps: tgt.reps, note, ex: toId };
+    const slot = { sets: base.sets || 3, reps: tgt.reps, note, ex: toId };
     const sg = swapSuggestion(fromId, toId, slot, { deload: a.deload, badDay: a.badDay });
     a.exercises[idx] = {
-      exId: toId, reps: slot.reps, note: slot.note || '', suggestion: sg,
+      exId: toId, reps: slot.reps, note: slot.note || '', suggestion: sg, ...(entry.ss ? { ss: entry.ss, ssPos: entry.ssPos } : {}),
       swappedFrom: (entry.swappedFrom || fromId) === toId ? undefined : (entry.swappedFrom || fromId),
       sets: Array.from({ length: sg.sets }, (_, j) => ({ weight: sg.weights[j] ?? '', reps: sg.targets[j] ?? '', done: false, rir: null })),
     };
-    if (saveProg && w) { w.exercises[idx].ex = toId; w.exercises[idx].sets = 3; w.exercises[idx].reps = slot.reps; w.exercises[idx].note = slot.note || ''; }
+    if (saveProg && w) { w.exercises[idx].ex = toId; w.exercises[idx].sets = slot.sets; w.exercises[idx].reps = slot.reps; w.exercises[idx].note = slot.note || ''; }
     save(); closeSheet(); render();
     toast(saveProg ? `Permanent → ${exercise(toId).name}` : `Today: ${exercise(toId).name}`);
   },
   finish: () => finishSession('done'),
+  startDeload: () => {
+    const p = deloadPrompt();
+    startEarlyDeload(state.settings, p ? p.reasons : [{ text: 'Started manually' }]);
+    save(); render(); toast('Deload on for 7 days — 2 sets, same weights, RIR 3');
+  },
+  dismissDeload: el => { state.settings.deloadDismissed = { date: ymd(), key: el.dataset.key }; save(); render(); },
+  endDeload: () => { if (confirm('End the early deload now?')) { state.settings.earlyDeload = null; save(); render(); } },
   discard: () => { if (confirm('Discard this workout? Logged sets will be lost.')) { state.active = null; stopTimer(); save(); wake(false); render(); } },
   dizzy: () => {
     const a = state.active; a.paused = true; a.dizzy = true; stopTimer();
@@ -1404,6 +1452,7 @@ const changes = {
   deloadEnabled: el => { state.settings.deloadEnabled = el.checked; save(); render(); },
   restFirst: el => { state.settings.rest.first = +el.value; save(); render(); },
   restOther: el => { state.settings.rest.other = +el.value; save(); render(); },
+  restSuperset: el => { state.settings.rest.superset = +el.value; save(); render(); },
   sound: el => { state.settings.sound = el.checked; save(); },
   vibrate: el => { state.settings.vibrate = el.checked; save(); },
   voice: el => { state.settings.voice = el.checked; save(); },
@@ -1452,10 +1501,11 @@ function renderTimer() {
   const left = Math.max(0, Math.ceil((t.end - Date.now()) / 1000));
   if (!el.classList.contains('show') || !el.querySelector('.tleft')) {
     el.innerHTML = `<div class="tbar"><i></i></div><div class="trow"><button class="tbtn" data-act="timerAdd" data-n="-15">−15</button>
-      <div class="tmid"><small>REST · next set</small><b class="tleft"></b></div><button class="tbtn" data-act="timerAdd" data-n="15">+15</button><button class="tbtn skip" data-act="timerSkip">Skip</button></div>`;
+      <div class="tmid"><small class="tlabel">REST · next set</small><b class="tleft"></b></div><button class="tbtn" data-act="timerAdd" data-n="15">+15</button><button class="tbtn skip" data-act="timerSkip">Skip</button></div>`;
     el.classList.add('show');
   }
   el.querySelector('.tleft').textContent = left ? fmtSec(left) : 'GO!';
+  const tl = el.querySelector('.tlabel'); const want = `REST · ${t.label && /^next: /.test(t.label) ? t.label.slice(6) : 'next set'}`; if (tl && tl.textContent !== want) tl.textContent = want;
   el.querySelector('.tbar i').style.width = `${(left / t.total) * 100}%`;
   el.classList.toggle('done', !left);
 }
@@ -1555,7 +1605,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 
 // test hook (used by scripts/e2e.mjs)
 window.__rep = {
-  get state() { return state; }, render, injectionStatus, suppAdherence, injLine,
+  get state() { return state; }, render, save, programWeek, suggest, deloadPrompt, injectionStatus, suppAdherence, injLine,
   buildCheckIn, estimateExpenditure, sessionSummary, summarySheet, compareSet, plateBreakdown, formatPlates, wantsPlates, barFor,
   lossRate, projectGoal, muscleRiskFlag, movingAverage, needsBackupReminder,
   swapSuggestion, shareOrDownloadBackup, embedUrl, watchUrl, demoUrl,

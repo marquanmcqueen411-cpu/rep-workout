@@ -7,6 +7,7 @@ import { exercise } from './exercises.js';
 import { lossRate, movingAverage, muscleRiskFlag } from './fatloss.js';
 import { weekOf, setScore, logKind, bwOn } from './progression.js';
 import { estimateExpenditure } from './expenditure.js';
+import { earlyDeloadOn, deloadTriggers } from './deload.js';
 
 function avg(nums) {
   const a = nums.filter(n => n != null && !Number.isNaN(+n));
@@ -51,7 +52,7 @@ function topSet(ex) {
 
 /** Build a plain-text weekly summary for Coach Brooke. */
 export function buildCheckIn(ref = new Date(), st = state) {
-  // Use the just-finished week if today is Monday (Boss opens it Monday morning).
+  // Use the just-finished week if today is Monday (Marquan opens it Monday morning).
   // Otherwise summarize the current week-to-date.
   const today = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
   const lookAt = today.getDay() === 1 ? addDays(today, -1) : today; // Sun if Mon
@@ -149,8 +150,16 @@ export function buildCheckIn(ref = new Date(), st = state) {
 
   const lines = [];
   lines.push(`Rep weekly check-in · ${from} → ${to}`);
-  lines.push(`Boss · ${st.program.name || PROGRAM.name}`);
-  lines.push(`Program: week ${pw.week} of ${pw.of}${pw.deload ? ' (DELOAD)' : ''} · cycle ${pw.cycle}`);
+  lines.push(`Marquan · ${st.program.name || PROGRAM.name}`);
+  const early = earlyDeloadOn(st.settings.earlyDeload, parseYmd(to)) ? st.settings.earlyDeload : null;
+  lines.push(`Program: week ${pw.week} of ${pw.of}${early ? ' (EARLY DELOAD)' : pw.deload ? ' (DELOAD)' : ''} · cycle ${pw.cycle} · compounds RIR 2, isolation RIR 1–2, supersets 60 s`);
+  if (early) lines.push(`  Early deload since ${early.from}: ${early.reason}`);
+  else {
+    const trig = deloadTriggers(st, parseYmd(to), { plannedDeload: pw.deload });
+    lines.push(`  Deload check: ${trig.length ? trig.map(t => t.text).join('; ') + ' → deload suggested' : 'no early-deload triggers'}`);
+  }
+  const doneDeloads = (st.settings.deloadLog || []).filter(x => x.to >= from && x.from <= to);
+  for (const x of doneDeloads) lines.push(`  Early deload ${x.from} → ${x.to}: ${x.reason}`);
   lines.push('');
   lines.push('BODYWEIGHT');
   lines.push(`  7-day avg: ${fmt1(avgBw)} lb${change != null ? ` (${change > 0 ? '+' : ''}${fmt1(change)} vs prior week)` : ''}`);

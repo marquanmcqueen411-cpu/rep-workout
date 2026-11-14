@@ -35,9 +35,9 @@ test('all sets at top, lower barbell → +10', () => {
   assert.equal(r.weight, 235); assert.match(r.text, /\+10 lb/);
 });
 
-test('DB lower (split squat): +10 rule = +5 per hand, explained', () => {
+test('split squat: +5 rule (smallest jump) → next DB up, explained', () => {
   const r = suggestNext({ ex: 'split_squat', sets: 3, reps: [8, 10] }, X('split_squat'), [H(S(40, [10, 10, 10]))]);
-  assert.equal(r.weight, 45); assert.match(r.text, /\+5 lb\/hand = \+10 total/);
+  assert.equal(r.weight, 45); assert.match(r.text, /\+5 lb\/hand \(next DB up\)/);
 });
 
 test('DB upper: +5 rule → next DB up (+5/hand)', () => {
@@ -104,9 +104,10 @@ test('not a stall when reps went up', () => {
   assert.equal(suggestNext(bench, X('bench_press'), hist).kind, 'reps');
 });
 
-test('deload week: 2 sets at ~90% of last working weight', () => {
+test('deload: 2 sets, same weight, RIR 3', () => {
   const r = suggestNext(bench, X('bench_press'), [H(S(200, [8, 8, 7]))], { deload: true });
-  assert.equal(r.kind, 'deload'); assert.equal(r.sets, 2); assert.equal(r.weight, 180); assert.equal(r.targets.length, 2);
+  assert.equal(r.kind, 'deload'); assert.equal(r.sets, 2); assert.equal(r.weight, 200); assert.equal(r.targets.length, 2);
+  assert.match(r.text, /same weight .*RIR 3/);
 });
 
 test('after deload: return to previous working weight (deload session ignored)', () => {

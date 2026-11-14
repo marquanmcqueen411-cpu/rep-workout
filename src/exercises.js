@@ -248,7 +248,7 @@ export const EXERCISES = [
   E('spanish_squat', 'Spanish Squat (band)', 'Heavy band anchored behind knees', 'lower', 'squat',
     ['quads'], ['glutes'], ['Band behind your knees, anchored to a rack.', 'Sit back, shins vertical, torso upright.', 'Go to ~90°; drive up. Log reps.'], { bodyweight: true, equip: 'bodyweight' }),
   E('heels_elevated_goblet_squat', 'Heels-Elevated Goblet Squat', 'Dumbbell + plate/wedge under heels', 'lower', 'squat',
-    ['quads'], ['glutes', 'adductors'], ['Heels on a plate, DB at your chest.', 'Knees travel forward; sit straight down.', 'Full depth, drive up.'], { equip: 'db' }),
+    ['quads'], ['glutes', 'adductors'], ['Heels on a plate, DB at your chest.', 'Knees travel forward; sit straight down.', 'Full depth, drive up.'], { equip: 'db', smallJump: true }),
   E('band_leg_extension', 'Band Leg Extension (home)', 'Resistance band anchored behind chair', 'lower', 'quad_iso',
     ['quads'], [], ['Sit tall, band around the ankle.', 'Extend fully, squeeze 1 sec.', 'Slow return. Top of range → stronger band.'], { isolation: true, bodyweight: true, equip: 'bodyweight', tag: 'Home', home: true }),
   E('seated_calf_raise', 'Seated Calf Raise', 'Seated calf raise machine', 'lower', 'calf',
@@ -263,6 +263,29 @@ export const EXERCISES = [
     ['obliques', 'abs'], [], ['Stand side-on to the cable, handle at your chest.', 'Press straight out; don\'t let it twist you.', 'Pause 2 sec, return. Log weight; per side.'], { isolation: true, equip: 'cable', swapReps: [10, 10], swapNote: 'per side' }),
   E('side_plank', 'Side Plank', 'Bodyweight (floor)', 'lower', 'core',
     ['obliques'], ['abs'], ['Elbow under shoulder, body in a straight line.', 'Hips high; squeeze glutes.', 'Log seconds per side.'], { isolation: true, timed: true, equip: 'bodyweight', swapReps: [20, 30], swapNote: 'per side' }),
+  // ---- v2.0 (Coach Brooke final plan): chest fly, rear delts, arms, calves
+  E('cable_fly', 'Cable Fly', 'Dual cable stack + D-handles (chest height)', 'upper', 'chest_iso',
+    ['chest'], ['front_delts'], ['Step forward, slight bend in the elbows — keep it fixed.', 'Hug a big tree; hands meet in front of your chest.', 'Deep stretch on the way back, no shrugging.'], { isolation: true, equip: 'cable' }),
+  E('pec_deck', 'Pec Deck', 'Pec deck / machine fly', 'upper', 'chest_iso',
+    ['chest'], ['front_delts'], ['Seat so handles are at mid-chest.', 'Squeeze the pads together; pause 1 sec.', 'Slow return to a full stretch.'], { isolation: true, equip: 'machine' }),
+  E('flat_db_fly', 'Flat DB Fly', 'Dumbbells + flat bench', 'upper', 'chest_iso',
+    ['chest'], ['front_delts'], ['Soft elbows, palms facing.', 'Open wide to a deep chest stretch.', 'Bring them up over your chest — stop before they touch.'], { isolation: true, perHand: true, equip: 'db' }),
+  E('banded_fly', 'Banded Fly (home)', 'Resistance band anchored behind you', 'upper', 'chest_iso',
+    ['chest'], ['front_delts'], ['Band behind you at chest height.', 'Slight elbow bend; hug forward.', 'Slow return. Top of range → stronger band.'], { isolation: true, bodyweight: true, equip: 'bodyweight', tag: 'Home', home: true }),
+  E('reverse_pec_deck', 'Reverse Pec Deck', 'Pec deck (reverse fly)', 'upper', 'rear_delt',
+    ['rear_delts'], ['upper_back', 'traps'], ['Face the pad, handles at shoulder height.', 'Sweep arms back wide — lead with the elbows.', 'No shrugging; slow return.'], { isolation: true, equip: 'machine' }),
+  E('rear_delt_db_raise', 'Rear-Delt DB Raise', 'Dumbbells (bent over or chest on incline bench)', 'upper', 'rear_delt',
+    ['rear_delts'], ['upper_back'], ['Hinge over or lie chest-down on an incline bench.', 'Raise out to the sides, pinkies up.', 'Light weight, slow lowering.'], { isolation: true, perHand: true, equip: 'db' }),
+  E('band_pull_apart', 'Band Pull-Apart (home)', 'Resistance band', 'upper', 'rear_delt',
+    ['rear_delts'], ['upper_back', 'traps'], ['Arms straight at shoulder height.', 'Pull the band apart to your chest.', 'Slow return. Top of range → stronger band.'], { isolation: true, bodyweight: true, equip: 'bodyweight', tag: 'Home', home: true }),
+  E('db_overhead_extension', 'DB Overhead Triceps Extension', 'Dumbbell (one, both hands)', 'upper', 'arms',
+    ['triceps'], [], ['Sit tall, one DB overhead in both hands.', 'Lower behind your head — elbows forward.', 'Extend fully; deep stretch each rep.'], { isolation: true, equip: 'db' }),
+  E('ez_skull_crusher', 'EZ-Bar Skull Crusher', 'EZ curl bar + flat bench', 'upper', 'arms',
+    ['triceps'], [], ['Lie flat, bar over your eyes.', 'Bend elbows only — lower to the forehead/behind the head.', 'Extend fully; elbows stay in.'], { isolation: true, equip: 'barbell' }),
+  E('band_overhead_extension', 'Band Overhead Extension (home)', 'Resistance band', 'upper', 'arms',
+    ['triceps'], [], ['Stand on the band, hands behind your head.', 'Extend overhead, elbows forward.', 'Slow return. Top of range → stronger band.'], { isolation: true, bodyweight: true, equip: 'bodyweight', tag: 'Home', home: true }),
+  E('smith_seated_calf_raise', 'Smith Seated Calf Raise', 'Smith machine + bench + plate under toes', 'lower', 'calf',
+    ['calves'], [], ['Bar padded across the knees; toes on a plate.', 'Full stretch at the bottom, pause.', 'Rise high, slow down.'], { isolation: true, equip: 'smith' }),
 ];
 
 export const EX_BY_ID = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
@@ -336,6 +359,20 @@ export const VIDEOS = {
   leg_extension: { id: 'm0FOpMEgero', title: 'Leg Extension', channel: 'Renaissance Periodization' },
   plank: { id: 'mwlp75MS6Rg', title: 'How to do a Plank | Proper Form & Technique | NASM', channel: 'National Academy of Sports Medicine (NASM)' },
   banded_pushup: { id: 'cOFwFzzLFWw', title: 'Movement Demo - Push Ups With Bands', channel: 'Rogue Fitness' },
+  // v2.0 final plan lifts + swaps (oEmbed-verified 2026-11-13)
+  cable_fly: { id: "4mfLHnFL0Uw", title: "Cable Flye", channel: "Renaissance Periodization" },
+  pec_deck: { id: "O-OBCfyh9Fw", title: "Pec Deck Flye", channel: "Renaissance Periodization" },
+  flat_db_fly: { id: "JFm8KbhjibM", title: "Flat Dumbbell Flye", channel: "Renaissance Periodization" },
+  banded_fly: { id: "yVcEkvgymt8", title: "Band Chest Fly", channel: "Men's Health" },
+  face_pull: { id: "-MODnZdnmAQ", title: "Cable Rope Facepull", channel: "Renaissance Periodization" },
+  reverse_pec_deck: { id: "5YK4bgzXDp0", title: "Machine Reverse Flye", channel: "Renaissance Periodization" },
+  rear_delt_db_raise: { id: "34gVHrkaiz0", title: "Bent Lateral Raise", channel: "Renaissance Periodization" },
+  band_pull_apart: { id: "bYsgk9SrJ48", title: "How to Do Band Pull Aparts: A Guide from Physical Therapists", channel: "Hinge Health" },
+  cable_curl: { id: "opFVuRi_3b8", title: "Cable EZ Bar Curl", channel: "Renaissance Periodization" },
+  db_overhead_extension: { id: "-Vyt2QdsR7E", title: "How To: Standing Overhead Dumbbell Tricep Extension", channel: "ScottHermanFitness" },
+  ez_skull_crusher: { id: "GaK2da6B2zM", title: "EZ Bar Skull Crushers: How To", channel: "Hammer Fitness" },
+  band_overhead_extension: { id: "8-q04odgg4M", title: "Resistance Band Overhead Tricep Extension", channel: "Ambitious Athletics" },
+  smith_seated_calf_raise: { id: "PgWEWfllFIE", title: "Smith Machine Seated Calf Raise", channel: "RADCENTRE" },
   // Coach Brooke swaps (oEmbed-verified 2026-11-13)
   single_arm_cable_pulldown: { id: "r68DrqhNSis", title: "Exercise Index -  Single Arm Pulldown", channel: "mountaindog1" },
   band_pulldown: { id: "8oRWrUxU-6I", title: "Banded Lat Pulldown At Home", channel: "Beyond Fitness Coaching" },
@@ -389,6 +426,13 @@ export const DRE_SWAPS = {
   leg_extension: ['spanish_squat', 'heels_elevated_goblet_squat', 'band_leg_extension'],
   calf_raise: ['seated_calf_raise', 'leg_press_calf_raise', 'single_leg_db_calf_raise'],
   plank: ['dead_bug', 'pallof_press', 'side_plank'],
+  // v2.0 final plan — Coach Brooke's ranked swaps for the new lifts
+  cable_fly: ['pec_deck', 'flat_db_fly', 'banded_fly'],
+  face_pull: ['reverse_pec_deck', 'rear_delt_db_raise', 'band_pull_apart'],
+  overhead_cable_extension: ['db_overhead_extension', 'ez_skull_crusher', 'band_overhead_extension'],
+  cable_curl: ['ez_bar_curl', 'db_curl', 'band_curl'],
+  lying_leg_curl: ['seated_leg_curl', 'stability_ball_leg_curl', 'band_leg_curl'],
+  seated_calf_raise: ['leg_press_calf_raise', 'smith_seated_calf_raise', 'single_leg_db_calf_raise'],
 };
 
 // Coach Brooke's home swaps (no gym) — shown after the ranked list, tagged "Home".

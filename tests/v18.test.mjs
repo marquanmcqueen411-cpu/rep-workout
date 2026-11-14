@@ -123,7 +123,7 @@ test('check-in includes burn estimate once there is data', () => {
 
 test('packaging: v1.8.0 cache, new modules cached, manifest shortcuts', () => {
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /rep-v1\.9\.0/);
+  assert.match(sw, /rep-v2\.0\.0/);
   for (const f of ['expenditure.js', 'volume.js', 'summary.js']) assert.ok(sw.includes(`./src/${f}`), f);
   assert.match(sw, /notificationclick/);
   const m = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));

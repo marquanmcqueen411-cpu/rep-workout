@@ -1,5 +1,6 @@
 // Local-only persistence (localStorage). Export/Import lives in Settings.
-import { PROGRAM, LEGACY_PROGRAM_V1, DEFAULT_SCHEDULE, DEFAULT_TARGETS, DEFAULT_REST, BODYWEIGHT, DEFAULT_SUPPLEMENTS, DEFAULT_QUICK_FOODS } from './program.js';
+import { exercise } from './exercises.js';
+import { PROGRAM, LEGACY_PROGRAM_V1, LEGACY_PROGRAM_V2, DEFAULT_SCHEDULE, DEFAULT_TARGETS, DEFAULT_REST, BODYWEIGHT, DEFAULT_SUPPLEMENTS, DEFAULT_QUICK_FOODS } from './program.js';
 
 const KEY = 'rep-workout.v1';
 export const clone = o => JSON.parse(JSON.stringify(o));
@@ -40,6 +41,9 @@ function defaults() {
       trapBarWeight: 45,     // trap/hex bar (lb)
       lastBackupAt: null,    // ISO timestamp of last successful backup share/download
       restNotify: false,     // phone notification when rest ends while the app is in the background
+      earlyDeload: null,     // { from, reason } — early deload (7 days), see deload.js
+      deloadDismissed: null, // { date, key } — 'Not now' on the deload prompt
+      deloadLog: [],         // finished early deloads
     },
     supplements: clone(DEFAULT_SUPPLEMENTS),
     quickFoods: clone(DEFAULT_QUICK_FOODS),
@@ -70,6 +74,7 @@ function migrate(s) {
   else if (out.program.id !== PROGRAM.id) migratePlan(out, d);
   if (out.program && typeof out.program.name === 'string') out.program.name = out.program.name.replace(/Coach Dre\b/g, 'Coach Brooke'); // coach renamed
   if (!out.daily || typeof out.daily !== 'object') out.daily = {};
+  if (!Array.isArray(out.settings.deloadLog)) out.settings.deloadLog = [];
   if (!out.exNotes || typeof out.exNotes !== 'object' || Array.isArray(out.exNotes)) out.exNotes = {};
   // v1.1 shipped placeholder "example" supplements — swap them for the real defaults
   if (out.supplements.length && out.supplements.every(x => x.example)) out.supplements = d.supplements;
@@ -77,26 +82,39 @@ function migrate(s) {
 }
 
 /**
- * v1.9: Coach Brooke's 4-day split (5 lifts/day) replaces the 3-lift plan.
- * Keeps every logged session, weight and the cycle start (same exercise + workout ids),
- * carries over any lift you made a permanent swap for, sets Tuesday to rest.
+ * Plan upgrades (v1 3-lift → v1.9 5-lift → v2.0 final plan with supersets).
+ * Keeps every logged session, weight, rest setting and the cycle start (same workout + exercise ids).
+ * A permanent swap is carried onto the new slot that has the same default lift
+ * (lifts removed from the plan — seated cable row, hip thrust — keep their history; their swap is listed in droppedSwaps).
+ * Tuesday is always rest; an untouched old schedule becomes the new default.
  */
+const LEGACY = { 'dre-ul4-v1': LEGACY_PROGRAM_V1, 'dre-ul4-v2': LEGACY_PROGRAM_V2 };
 export function migratePlan(out, d = defaults()) {
   const old = out.program; const fromId = old.id || 'unknown';
-  const prog = clone(PROGRAM); const kept = [];
+  const longDays = (old.workouts || []).some(w => (w.exercises || []).length > 3);
+  const legacyPlan = LEGACY[fromId] || (longDays ? LEGACY_PROGRAM_V2 : LEGACY_PROGRAM_V1);
+  const prog = clone(PROGRAM); const kept = []; const dropped = [];
   for (const w of old.workouts || []) {
-    const legacy = LEGACY_PROGRAM_V1.workouts[w.id] || [];
+    const legacy = legacyPlan.workouts[w.id] || [];
     (w.exercises || []).forEach((slot, i) => {
       const def = legacy[i];
       if (!def || !slot || !slot.ex || slot.ex === def) return;
-      for (const nw of prog.workouts) for (const ns of nw.exercises) if (ns.ex === def) { ns.ex = slot.ex; kept.push({ from: def, to: slot.ex }); }
+      let hit = false;
+      for (const nw of prog.workouts) for (const ns of nw.exercises) if (ns.ex === def) {
+        ns.ex = slot.ex; hit = true; kept.push({ from: def, to: slot.ex });
+        const sx = exercise(slot.ex);
+        if (sx && sx.swapReps) { ns.reps = [...sx.swapReps]; ns.note = sx.swapNote || ''; }
+      }
+      if (!hit) dropped.push({ from: def, to: slot.ex });
     });
   }
   out.program = prog;
-  const sig = (out.settings.schedule || []).map(x => (x && x.type === 'lift' ? `lift:${x.workout}` : x && x.type));
-  if (sig.join() === LEGACY_PROGRAM_V1.schedule.join()) out.settings.schedule = clone(d.settings.schedule);
+  const sig = (out.settings.schedule || []).map(x => (x && x.type === 'lift' ? `lift:${x.workout}` : x && x.type)).join();
+  if (sig === LEGACY_PROGRAM_V1.schedule.join() || sig === LEGACY_PROGRAM_V2.schedule.join()) out.settings.schedule = clone(d.settings.schedule);
   else if (Array.isArray(out.settings.schedule) && out.settings.schedule.length === 7) out.settings.schedule[2] = { type: 'rest' }; // Tuesday: always rest
-  out.planMigration = { from: fromId, to: PROGRAM.id, at: new Date().toISOString(), keptSwaps: kept };
+  const rec = { from: fromId, to: PROGRAM.id, at: new Date().toISOString(), keptSwaps: kept, droppedSwaps: dropped };
+  out.planMigrations = [...(Array.isArray(out.planMigrations) ? out.planMigrations : out.planMigration ? [out.planMigration] : []), rec];
+  out.planMigration = rec;
   return out;
 }
 

@@ -1,8 +1,11 @@
 // ============================================================================
 //  PROGRESSIVE OVERLOAD ENGINE (pure functions — unit tested in tests/)
 //
-//  Base rules (Coach Brooke): 3 sets per lift at RIR 2. All sets at top of range →
-//  +5 lb upper / +10 lb lower. Week 6 = deload. Bad day = 2 lifts × 2 sets.
+//  Base rules (Coach Brooke, final v2): compounds RIR 2, isolation RIR 1–2.
+//  Double progression: all sets at the top of the range AT the target RIR → add load:
+//  +5 lb upper; +10 lb box squat / trap-bar DL / RDL / leg press (lower compounds);
+//  +5 lb (or the smallest jump) on split squat and every isolation lift.
+//  Deload (week 6 or early, see deload.js) = 2 sets, same weights, RIR 3. Bad day = 2 lifts × 2 sets.
 //  On top of that:
 //   • Double progression per set: sets below the top of range aim +1 rep.
 //   • Equipment-aware jumps (barbell 5, DB per hand 5, stacks 10, cable 5;
@@ -15,7 +18,10 @@
 //   • After a deload, return to the previous working weight.
 // ============================================================================
 
-export const RULES = { upperJump: 5, lowerJump: 10, deloadSets: 2, deloadPct: 0.9, badDayLifts: 2, badDaySets: 2, stallSessions: 3, resetPct: 0.9 };
+export const RULES = { upperJump: 5, lowerJump: 10, smallJump: 5, deloadSets: 2, deloadPct: 1, badDayLifts: 2, badDaySets: 2, stallSessions: 3, resetPct: 0.9 };
+
+/** Target RIR: compounds 2, isolation 1–2 (Coach Brooke). */
+export function targetRir(ex) { return ex && ex.isolation ? { lo: 1, hi: 2, label: 'RIR 1–2' } : { lo: 2, hi: 2, label: 'RIR 2' }; }
 
 export const e1rm = (w, r) => (w > 0 && r > 0 ? w * (1 + r / 30) : 0); // Epley
 
@@ -58,9 +64,15 @@ const fmt = w => `${+(+w).toFixed(1)}`;
 const joinReps = sets => sets.map(s => s.reps).join(',');
 
 /** Weight jump for "all sets at top". mult = 2 for an easy (RIR 3+) session. */
+/** Brooke's jump rule: +10 only on lower-body compounds (squat/hinge/leg press); split squats and isolation lifts +5. */
+export function ruleJump(ex) {
+  if (ex.region !== 'lower') return RULES.upperJump;
+  if (ex.isolation || ex.smallJump || ex.pattern === 'lunge') return RULES.smallJump;
+  return RULES.lowerJump;
+}
 export function jumpFor(ex, inc, mult = 1) {
-  const eq = equipOf(ex); const lower = ex.region === 'lower';
-  const rule = (lower ? RULES.lowerJump : RULES.upperJump) * mult;
+  const eq = equipOf(ex);
+  const rule = ruleJump(ex) * mult;
   if (eq === 'db' && ex.perHand) {
     const perHand = Math.max(inc, roundTo(rule / 2, inc, 'nearest'));
     const note = perHand * 2 === rule ? `+${perHand} lb/hand = +${rule} total` : `+${perHand} lb/hand (next DB up)`;
@@ -106,14 +118,15 @@ export function suggestNext(slot, ex, history = [], opts = {}) {
   }
   const base = H[0] || any[0];
   const ls = workingSets(base, N); const W = topW(ls);
+  // Plan went from 3 → 4 sets (bench, v2.0): a full 3-set session still counts as "all sets".
+  const full = ls.length >= Math.min(N, 3);
   const lastStr = `${fmt(W)} × ${joinReps(ls)}`;
   const backFromDeload = !opts.deload && history[0] && history[0].deload && H[0];
   const pre = backFromDeload ? `Back from deload → return to ${fmt(W)}. ` : '';
 
   if (opts.deload) {
-    const w = assisted ? roundTo(W / RULES.deloadPct, inc, 'up') : Math.min(W, roundTo(W * RULES.deloadPct, inc));
-    return out({ kind: 'deload', weight: w, targets: Array(N).fill(lo), last: lastStr,
-      text: `Deload week: ${nSets} × ${lo} at ~90% (${fmt(w)}). Smooth, easy reps.` });
+    return out({ kind: 'deload', weight: W, targets: Array(N).fill(lo), last: lastStr,
+      text: `Deload: ${nSets} × ${lo} at the same ${assisted ? 'assistance' : 'weight'} (${fmt(W)}${assisted ? ' lb assist' : ''}), stop with 3 reps left (RIR 3).` });
   }
   if (!H.length) {
     return out({ kind: 'hold', weight: W, targets: ls.map(s => Math.max(lo, Math.min(hi, +s.reps))), last: lastStr,
@@ -136,7 +149,7 @@ export function suggestNext(slot, ex, history = [], opts = {}) {
     const sameW = win.every(h => topW(workingSets(h, N)) === w0);
     const firstTotal = total(workingSets(win[S - 1], N));
     const noGain = win.slice(0, S - 1).every(h => total(workingSets(h, N)) <= firstTotal);
-    const allTopNow = ls.length >= N && ls.every(s => +s.reps >= hi);
+    const allTopNow = full && ls.every(s => +s.reps >= hi);
     if (sameW && noGain && !allTopNow) {
       const w = down(RULES.resetPct);
       return out({ kind: 'stall', weight: w, targets: Array(N).fill(hi > lo + 1 ? lo + 1 : lo), last: lastStr,
@@ -144,13 +157,15 @@ export function suggestNext(slot, ex, history = [], opts = {}) {
     }
   }
   // 3) All sets at top of range → add weight (RIR-aware)
-  const allTop = ls.length >= N && ls.every(s => +s.reps >= hi);
+  const allTop = full && ls.every(s => +s.reps >= hi);
   const rirs = ls.filter(hasRir).map(s => +s.rir);
   const allRirLogged = rirs.length === ls.length && rirs.length > 0;
+  const tgt = targetRir(ex);
   if (allTop) {
-    if (allRirLogged && rirs.every(r => r === 0)) {
+    if (rirs.length && rirs.some(r => r < tgt.lo)) {
+      const why = rirs.every(r => r === 0) ? 'at failure (RIR 0)' : `below the target ${tgt.label}`;
       return out({ kind: 'hold', weight: W, targets: Array(N).fill(hi), last: lastStr,
-        text: `${pre}Hit ${joinReps(ls)} at ${fmt(W)} but at failure (RIR 0) → hold ${fmt(W)} and own it at RIR 2.` });
+        text: `${pre}Hit ${joinReps(ls)} at ${fmt(W)} but ${why} → hold ${fmt(W)} and own it at ${tgt.label}.` });
     }
     if (assisted && W <= 0) {
       return out({ kind: 'hold', weight: 0, targets: Array(N).fill(hi), last: lastStr,
@@ -189,7 +204,7 @@ function suggestNoLoad(slot, kind, H, any, opts, out) {
   const base = H[0] || any[0];
   const ls = base.sets.slice(0, N); const reps = ls.map(s => +s.reps || 0);
   const last = reps.map(r => r + u).join(',');
-  if (opts.deload) return out({ kind: 'deload', weight: 0, targets: Array(N).fill(lo), last, text: `Deload week: 2 × ${lo}${u}. Easy.` });
+  if (opts.deload) return out({ kind: 'deload', weight: 0, targets: Array(N).fill(lo), last, text: `Deload: 2 × ${lo}${u}, easy (RIR 3).` });
   if (ls.length >= N && reps.every(r => r >= hi)) {
     return out({ kind: 'hold', weight: 0, targets: Array(N).fill(hi), last,
       text: kind === 'timed' ? `Held ${last} — top of the ${lo}–${hi} s range. Keep ${hi} s with a harder brace (Brooke progresses this by time, not weight).`

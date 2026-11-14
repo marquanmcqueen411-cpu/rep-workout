@@ -75,6 +75,8 @@ test('DRE_SWAPS: every lift has exactly 3 ranked swaps that exist', () => {
     // v1.9 lifts — Coach Brooke's lists
     'assisted_pullup', 'seated_cable_row', 'cable_triceps_pushdown', 'db_curl',
     'seated_leg_curl', 'leg_extension', 'calf_raise', 'plank',
+    // v2.0 final plan
+    'cable_fly', 'face_pull', 'overhead_cable_extension', 'cable_curl', 'lying_leg_curl', 'seated_calf_raise',
   ];
   assert.deepEqual(Object.keys(DRE_SWAPS).sort(), [...primaries].sort());
   for (const id of primaries) {

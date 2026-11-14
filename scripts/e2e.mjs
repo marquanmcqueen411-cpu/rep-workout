@@ -34,13 +34,16 @@ if (!(await page.locator('.workout-card >> text=Upper A').count())) {
   await page.click('[data-act=pick][data-w=U1]');
   await page.waitForSelector('.workout-card >> text=Upper A');
 }
-// ---- v1.9: Coach Brooke 4-day split — 5 lifts per day
-assert((await page.locator('.workout-card .exlist li').count()) === 5, 'Upper A preview lists 5 lifts');
-assert(await page.locator('.workout-card >> text=5 lifts · 3 sets each').count(), 'preview copy: 5 lifts · 3 sets each');
-for (const n of ['Lat Pulldown', 'Cable Triceps Pushdown']) assert(await page.locator(`.workout-card >> text=${n}`).count(), `Upper A includes ${n}`);
+// ---- v2.0: Coach Brooke final plan — Upper A: bench 4×, then A1/A2 pushdown + curl superset
+assert((await page.locator('.workout-card .exlist li').count()) === 6, 'Upper A preview lists 6 exercises');
+assert(await page.locator('.workout-card >> text=6 exercises · 19 sets').count(), 'preview copy: 6 exercises · 19 sets');
+assert(await page.locator('.workout-card >> text=compounds RIR 2, isolation RIR 1–2').count(), 'preview shows RIR rules');
+for (const n of ['Lat Pulldown', 'Cable Triceps Pushdown', 'Dumbbell Curl']) assert(await page.locator(`.workout-card >> text=${n}`).count(), `Upper A includes ${n}`);
+assert(JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.workout-card .exlist .exnum')].map(e => e.textContent))) === JSON.stringify(['1', '2', '3', '4', 'A1', 'A2']), 'superset numbered A1/A2');
+assert(await page.locator('.workout-card li[data-ex=bench_press] >> text=4 × 6–8').count(), 'bench 4 × 6–8');
 await page.evaluate(() => { document.querySelector('.workout-card').scrollIntoView({ block: 'start' }); window.scrollBy(0, -8); });
 await page.waitForTimeout(300);
-await page.screenshot({ path: SHOTS + '32-upper-a-five-lifts.png' });
+await page.screenshot({ path: SHOTS + '32-upper-a-preview.png' });
 await page.evaluate(() => window.scrollTo(0, 0));
 
 // ---- injection due-window logic (default Saturday, due Sat–Sun, overdue Mon)
@@ -108,13 +111,13 @@ assert(/^2:(2|3)\d$/.test(t), `first-lift rest timer ~150 s (${t})`);
 await page.click('[data-act=rir][data-i="0"][data-j="0"][data-v="2"]');
 await page.click('[data-act=toggleSet][data-i="0"][data-j="1"]');
 await page.click('[data-act=rir][data-i="0"][data-j="1"][data-v="1"]');
-assert((await page.evaluate(() => window.__rep.state.active.exercises[0].sets.map(s => s.rir))).join() === '2,1,', 'RIR chips saved per set');
+assert((await page.evaluate(() => window.__rep.state.active.exercises[0].sets.map(s => s.rir))).join() === '2,1,,', 'RIR chips saved per set (4 bench sets)');
 await page.waitForTimeout(2600);
 await page.evaluate(() => { document.querySelector('section.card.ex').scrollIntoView({ block: 'start' }); window.scrollBy(0, -50); });
 await page.screenshot({ path: SHOTS + '01-today-workout-logging.png' });
 
 // ---- v1.8: last time per set + comparison, sticky setup note
-assert((await cards.nth(0).locator('.prev').count()) === 3, 'last-time line under every bench set');
+assert((await cards.nth(0).locator('.prev').count()) === 4, 'last-time line under every bench set (4 sets)');
 assert((await cards.nth(0).locator('.prev').first().textContent()).includes('Last time 180×8'), 'last time shows 180×8');
 assert(await cards.nth(0).locator('.prev .cmp').count() >= 1, 'completed set shows comparison vs last time');
 await page.click('[data-act=exNote][data-ex=bench_press]');
@@ -146,7 +149,21 @@ assert((await page.evaluate(() => window.__rep.state.dizzyEvents.length)) === 1,
 
 // finish remaining sets
 await page.click('[data-act=toggleSet][data-i="0"][data-j="2"]');
-for (const i of [1, 2, 3, 4]) for (const j of [0, 1, 2]) {
+await page.click('[data-act=toggleSet][data-i="0"][data-j="3"]');
+// v2.0 superset: A1 set → 60 s rest, next = A2 (alternate sets)
+for (const [i, j] of [[4, 0]]) {
+  const wSel = `input[data-i="${i}"][data-j="${j}"][data-f="weight"]`, rSel = `input[data-i="${i}"][data-j="${j}"][data-f="reps"]`;
+  if (!(await page.inputValue(wSel))) await page.fill(wSel, '50');
+  if (!(await page.inputValue(rSel))) await page.fill(rSel, '12');
+  await page.click(`[data-act=toggleSet][data-i="${i}"][data-j="${j}"]`);
+}
+await page.waitForSelector('#timer.show');
+const ssT = await page.evaluate(() => ({ total: window.__rep.state.timer.total, label: document.querySelector('#timer .tlabel').textContent }));
+assert(ssT.total === 60 && /A2 Dumbbell Curl · set 1/.test(ssT.label), 'superset A1 → 60 s rest, next A2 set 1: ' + JSON.stringify(ssT));
+assert(await page.locator('.ssgroup[data-ss=A] section.card.ex').count() === 2 && await page.locator('.ssgroup .sshead >> text=Superset A').count(), 'A1/A2 grouped in the workout');
+for (const i of [1, 2, 3, 4, 5]) for (const j of [0, 1, 2]) {
+  if (await page.locator(`[data-act=toggleSet][data-i="${i}"][data-j="${j}"].on, [data-act=toggleSet][data-i="${i}"][data-j="${j}"][aria-pressed=true]`).count()) continue;
+  if (await page.evaluate(([i, j]) => window.__rep.state.active.exercises[i].sets[j].done, [i, j])) continue;
   // first-ever lifts (no history) need a starting weight + reps
   const wSel = `input[data-i="${i}"][data-j="${j}"][data-f="weight"]`, rSel = `input[data-i="${i}"][data-j="${j}"][data-f="reps"]`;
   if (await page.locator(wSel).count() && !(await page.inputValue(wSel))) await page.fill(wSel, '50');
@@ -157,7 +174,7 @@ const lastTimer = await page.evaluate(() => window.__rep.state.timer);
 assert(lastTimer === null, 'no rest timer after final set');
 await page.click('[data-act=finish]');
 await page.waitForSelector('text=Workout complete');
-assert((await page.locator('.panel .sumlifts li').count()) === 5, 'summary lists all 5 lifts');
+assert((await page.locator('.panel .sumlifts li').count()) === 6, 'summary lists all 6 exercises');
 assert(await page.locator('.panel .sumlifts .cmp').count() >= 1, 'summary shows e1RM change vs last time');
 assert(await page.locator('.panel .pr-banner >> text=Barbell Bench Press').count(), 'summary names the PR lift');
 await page.evaluate(() => { document.getElementById('pr').classList.remove('show'); document.getElementById('toast').classList.remove('show'); });
@@ -175,7 +192,7 @@ await page.click('.panel [data-act=closeSheet]');
 const sess = await page.evaluate(() => window.__rep.state.sessions.at(-1));
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.screenshot({ path: SHOTS + '07-today-done.png' });
-assert(sess.exercises.length === 5 && sess.exercises.every(e => e.sets.length === 3), 'session saved: 5 lifts × 3 sets');
+assert(sess.exercises.length === 6 && sess.exercises[0].sets.length === 4 && sess.exercises.slice(1).every(e => e.sets.length === 3), 'session saved: bench 4 sets + 5 × 3');
 assert(sess.exercises[0].sets[0].reps === 7 && sess.exercises[0].sets[0].weight === 185, 'stepper edit saved (185×7)');
 assert(sess.exercises[0].sets[0].rir === 2 && sess.exercises[0].sets[0].pr.includes('e1rm') && sess.exercises[0].sets[0].pr.includes('weight'), 'saved set keeps RIR + PR flags');
 
@@ -341,12 +358,25 @@ await page.click('.tabbar [data-tab=settings]');
 await page.selectOption('select[data-change=sched][data-d="3"]', 'class');
 assert((await page.evaluate(() => window.__rep.state.settings.schedule[3].type)) === 'class', 'schedule editable (Wed → class)');
 await page.selectOption('select[data-change=sched][data-d="3"]', 'lift:L1');
-// v1.9 week plan: Mon UA · Tue rest · Wed LA · Thu steps · Fri UB · Sat LB · Sun steps
+// week plan (unchanged in v2.0): Mon UA · Tue rest · Wed LA · Thu steps · Fri UB · Sat LB · Sun steps
 assert(JSON.stringify(await page.evaluate(() => window.__rep.state.settings.schedule.map(x => x.type === 'lift' ? x.workout : x.type))) === JSON.stringify(['steps', 'U1', 'rest', 'L1', 'steps', 'U2', 'L2']), 'week plan: Tue rest, Thu/Sun steps');
 await page.evaluate(() => { const h = [...document.querySelectorAll('section.card h3')].find(x => x.textContent.includes('Weekly schedule')); h.closest('section').scrollIntoView({ block: 'start' }); window.scrollBy(0, -8); });
 await page.evaluate(() => document.getElementById('toast').classList.remove('show'));
 await page.waitForTimeout(400);
 await page.screenshot({ path: SHOTS + '34-week-plan.png' });
+// v2.0 week plan on Today (weekly strip) + per-day lifts in Choose
+await page.click('.tabbar [data-tab=today]');
+await page.waitForSelector('.weekstrip');
+assert(JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.weekstrip .wd b')].map(b => b.textContent))) === JSON.stringify(['UA', '–', 'LA', '👟', 'UB', 'LB', '👟']), 'week strip: Mon UA, Tue rest, Wed LA, Thu walk, Fri UB, Sat LB, Sun walk');
+await page.click('[data-act=choose]');
+await page.waitForSelector('.panel .picker');
+const pickTxt = await page.evaluate(() => [...document.querySelectorAll('.panel .picker li')].map(li => li.textContent));
+assert(pickTxt.length === 4 && /Cable Fly/.test(pickTxt[2]) && /Face Pull/.test(pickTxt[2]) && /Lying Leg Curl/.test(pickTxt[3]) && !pickTxt.join().includes('Hip Thrust') && !pickTxt.join().includes('Seated Cable Row'), 'choose sheet shows the v2 lifts');
+await page.evaluate(() => { document.querySelector('.panel').scrollTop = 0; document.getElementById('toast')?.classList.remove('show'); });
+await page.waitForTimeout(400);
+await page.screenshot({ path: SHOTS + '37-week-plan-v2.png' });
+await page.click('.panel [data-act=closeSheet]');
+await page.click('.tabbar [data-tab=settings]');
 const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-act=export]')]);
 const path = SHOTS + '../.e2e-backup.json'; await dl.saveAs(path);
 const backup = JSON.parse(readFileSync(path, 'utf8'));
@@ -440,14 +470,16 @@ assert(/Each side:/.test(plateTxt) || /Bar only/.test(plateTxt), 'plate breakdow
 await page.evaluate(() => { document.querySelector('.plates')?.scrollIntoView({ block: 'center' }); window.scrollBy(0, -40); });
 await page.waitForTimeout(300);
 await page.screenshot({ path: SHOTS + '21-plate-calculator.png' });
-// v1.9: Lower B = 5 lifts, plank is time-based (seconds, no weight)
-assert((await page.locator('section.card.ex').count()) === 5, 'Lower B workout shows 5 lifts');
-const plankCard = page.locator('section.card.ex', { hasText: 'Plank' });
+// v2.0: Lower B = 6 exercises (A1 seated calf raise / A2 plank); plank is time-based
+assert((await page.locator('section.card.ex').count()) === 6, 'Lower B workout shows 6 exercises');
+assert(await page.locator('.ssgroup[data-ss=A] >> text=Seated Calf Raise').count() && await page.locator('.ssgroup[data-ss=A] >> text=Plank').count(), 'Lower B superset: seated calf raise + plank');
+assert(!(await page.locator('section.card.ex >> text=Barbell Hip Thrust').count()), 'hip thrust removed from Lower B');
+const plankCard = page.locator('section.card.ex').filter({ has: page.locator('h2', { hasText: /^Plank$/ }) });
 assert(await plankCard.locator('.bwcell').count() === 3 && await plankCard.locator('.sethead >> text=Seconds').count(), 'plank logs seconds (no weight stepper)');
 assert((await plankCard.locator('input[data-f=reps]').first().inputValue()) === '30', 'plank first time: aim 30 s');
-await page.click('[data-act=step][data-i="4"][data-j="0"][data-f=reps][data-d="5"]');
+await page.click('[data-act=step][data-i="5"][data-j="0"][data-f=reps][data-d="5"]');
 assert((await plankCard.locator('input[data-f=reps]').first().inputValue()) === '35', 'plank ± steps by 5 s');
-await page.evaluate(() => { const c = [...document.querySelectorAll('section.card.ex')]; c[4].scrollIntoView({ block: 'start' }); window.scrollBy(0, -70); });
+await page.evaluate(() => { const c = [...document.querySelectorAll('section.card.ex')]; c[5].scrollIntoView({ block: 'start' }); window.scrollBy(0, -70); });
 await page.waitForTimeout(300);
 await page.screenshot({ path: SHOTS + '33-lower-b-plank-seconds.png' });
 await page.evaluate(() => window.scrollTo(0, 0));
@@ -481,30 +513,89 @@ assert(JSON.stringify(legExtSwaps) === JSON.stringify(['spanish_squat', 'heels_e
 assert(await page.locator('.panel [data-ex=band_leg_extension] >> text=Home').count(), 'band leg extension tagged Home');
 await page.click('[data-act=closeSheet]');
 await page.waitForTimeout(250);
-await page.click('[data-act=swap][data-i="4"]');
+await page.click('[data-act=swap][data-i="5"]');
 await page.waitForSelector('.panel >> text=Coach Brooke swaps');
 const plankSwaps = await page.evaluate(() => [...document.querySelectorAll('.panel [data-act=doSwap]')].map(e => e.dataset.ex));
 assert(JSON.stringify(plankSwaps) === JSON.stringify(['dead_bug', 'pallof_press', 'side_plank']), 'Brooke plank swaps: ' + JSON.stringify(plankSwaps));
 await page.click('.panel [data-act=doSwap][data-ex=side_plank]');
-const sp = await page.evaluate(() => window.__rep.state.active.exercises[4]);
+const sp = await page.evaluate(() => window.__rep.state.active.exercises[5]);
 assert(sp.exId === 'side_plank' && JSON.stringify(sp.reps) === '[20,30]' && sp.note === 'per side', 'side plank keeps its own 20–30 s/side target: ' + JSON.stringify(sp.reps) + sp.note);
-const spCard = page.locator('section.card.ex', { hasText: 'Side Plank' });
+const spCard = page.locator('section.card.ex').filter({ has: page.locator('h2', { hasText: /^Side Plank$/ }) });
 assert(await spCard.locator('.bwcell').count() === 3 && await spCard.locator('.sethead >> text=Seconds').count(), 'side plank logs seconds');
 assert(await spCard.locator('.chip >> text=20–30 s hold per side').count(), 'side plank chip shows 20–30 s hold per side');
 await page.waitForTimeout(300);
-await page.evaluate(() => { const c = [...document.querySelectorAll('section.card.ex')]; c[4].scrollIntoView({ block: 'start' }); window.scrollBy(0, -70); document.querySelector('#toast')?.classList.remove('show'); });
+await page.evaluate(() => { const c = [...document.querySelectorAll('section.card.ex')]; c[5].scrollIntoView({ block: 'start' }); window.scrollBy(0, -70); document.querySelector('#toast')?.classList.remove('show'); });
 await page.waitForTimeout(300);
 await page.screenshot({ path: SHOTS + '35-side-plank-swap.png' });
-await page.click('[data-act=swap][data-i="4"]');
+await page.click('[data-act=swap][data-i="5"]');
 await page.waitForSelector('.panel >> text=Coach Brooke swaps');
 const back = await page.evaluate(() => [...document.querySelectorAll('.panel [data-act=doSwap]')].map(e => e.dataset.ex));
 assert(JSON.stringify(back) === JSON.stringify(['plank', 'dead_bug', 'pallof_press']), 'swap sheet offers the way back to plank + other Brooke swaps: ' + JSON.stringify(back));
 await page.click('.panel [data-act=doSwap][data-ex=plank]');
-const pk = await page.evaluate(() => window.__rep.state.active.exercises[4]);
+const pk = await page.evaluate(() => window.__rep.state.active.exercises[5]);
 assert(pk.exId === 'plank' && JSON.stringify(pk.reps) === '[30,45]' && !pk.swappedFrom, 'back to plank restores 30–45 s');
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.click('[data-act=discard]');
 // dialog auto-accepted by page.on('dialog')
+
+// ---- v2.0: Upper B — two supersets (A1 lateral raise / A2 face pull, B1 overhead ext / B2 cable curl)
+await page.waitForSelector('[data-act=choose]');
+await page.click('[data-act=choose]');
+await page.click('.picker [data-act=pick][data-w=U2]');
+assert(JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.workout-card .exlist .exnum')].map(e => e.textContent))) === JSON.stringify(['1', '2', '3', 'A1', 'A2', 'B1', 'B2']), 'Upper B numbered 1–3 + A1/A2 + B1/B2');
+await page.click('[data-act=precheck]');
+await page.click('[data-act=pq][data-k=ate][data-v="1"]');
+await page.click('[data-act=pq][data-k=water][data-v="1"]');
+await page.click('[data-act=pq][data-k=ok][data-v="1"]');
+await page.click('[data-act=start]');
+await page.waitForSelector('.ssgroup[data-ss=B]');
+assert((await page.locator('section.card.ex').count()) === 7, 'Upper B: 7 exercise cards');
+assert(await page.locator('.ssgroup[data-ss=A] >> text=Cable Lateral Raise').count() && await page.locator('.ssgroup[data-ss=A] >> text=Cable Face Pull').count(), 'superset A = lateral raise + face pull');
+assert(await page.locator('.ssgroup[data-ss=B] >> text=Overhead Cable Triceps Extension').count() && await page.locator('.ssgroup[data-ss=B] >> text=Cable Curl').count(), 'superset B = overhead ext + cable curl');
+assert(await page.locator('section.card.ex').filter({ has: page.locator('h2', { hasText: /^Cable Fly$/ }) }).locator('.chip >> text=RIR 1–2').count(), 'isolation shows RIR 1–2');
+assert(await page.locator('section.card.ex').filter({ has: page.locator('h2', { hasText: /^Incline Dumbbell Press$/ }) }).locator('.chip >> text=RIR 2').count(), 'compound shows RIR 2');
+assert(await page.locator('.safety >> text=I feel dizzy').count(), 'dizzy stop on Upper B');
+// A2 → back to A1 next set
+await page.fill('input[data-i="4"][data-j="0"][data-f="weight"]', '40'); await page.fill('input[data-i="4"][data-j="0"][data-f="reps"]', '15');
+await page.click('[data-act=toggleSet][data-i="4"][data-j="0"]');
+await page.waitForSelector('#timer.show');
+const ssB = await page.evaluate(() => ({ total: window.__rep.state.timer.total, label: document.querySelector('#timer .tlabel').textContent }));
+assert(ssB.total === 60 && /A1 Cable Lateral Raise · set 1/.test(ssB.label), 'A2 face pull → 60 s → A1 lateral raise: ' + JSON.stringify(ssB));
+await page.evaluate(() => { window.__rep.state.timer = null; window.__rep.render(); const g = document.querySelector('.ssgroup[data-ss=A]'); g.scrollIntoView({ block: 'start' }); window.scrollBy(0, -60); document.getElementById('toast')?.classList.remove('show'); document.getElementById('pr')?.classList.remove('show'); });
+await page.waitForTimeout(400);
+await page.screenshot({ path: SHOTS + '36-upper-b-supersets.png' });
+await page.evaluate(() => window.scrollTo(0, 0));
+await page.click('[data-act=discard]');
+
+// ---- v2.0: deload prompt (bad sleep) → Start deload → early deload banner, 2 sets / same weight / RIR 3
+await page.waitForSelector('.hero');
+await page.evaluate(() => {
+  const s = window.__rep.state; const k = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  window.__sleepStash = JSON.stringify({ t: s.daily[k(new Date())]?.sleep ?? null, dz: s.dizzyEvents });
+  s.dizzyEvents = [];
+  const d = new Date(); s.daily[k(d)] = { ...(s.daily[k(d)] || {}), sleep: 4.5 };
+  s.settings.earlyDeload = null; s.settings.deloadDismissed = null; window.__rep.save(); window.__rep.render();
+});
+await page.waitForSelector('#deloadPrompt');
+assert(await page.locator('#deloadPrompt >> text=Sleep has tanked').count(), 'deload prompt names the reason');
+assert(await page.locator('#deloadPrompt [data-act=startDeload]').count() && await page.locator('#deloadPrompt [data-act=dismissDeload]').count(), 'Start deload + Not now');
+await page.evaluate(() => { document.getElementById('deloadPrompt').scrollIntoView({ block: 'start' }); window.scrollBy(0, -12); });
+await page.waitForTimeout(400);
+await page.screenshot({ path: SHOTS + '38-deload-prompt.png' });
+await page.click('#deloadPrompt [data-act=startDeload]');
+await page.waitForSelector('.banner.deload >> text=Early deload');
+assert(!(await page.locator('#deloadPrompt').count()), 'prompt hidden once the deload is on');
+assert(await page.locator('.hero .chip >> text=DELOAD').count(), 'Today shows DELOAD week chip');
+const dl0 = await page.evaluate(() => { const R = window.__rep; const w = R.state.program.workouts[0]; return { pw: R.programWeek(), sg: R.suggest(w.exercises[0], { deload: true }) }; });
+assert(dl0.pw.early && dl0.sg.sets === 2 && /RIR 3/.test(dl0.sg.text), 'deload suggestion: 2 sets, RIR 3 ' + JSON.stringify(dl0.sg.text));
+await page.evaluate(() => { document.querySelector('.banner.deload').scrollIntoView({ block: 'start' }); window.scrollBy(0, -80); document.getElementById('toast')?.classList.remove('show'); });
+await page.waitForTimeout(300);
+await page.screenshot({ path: SHOTS + '39-early-deload-on.png' });
+// restore
+await page.evaluate(() => {
+  const s = window.__rep.state; const st = JSON.parse(window.__sleepStash); const k = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  s.daily[k(new Date())].sleep = st.t; s.dizzyEvents = st.dz; s.settings.earlyDeload = null; window.__rep.save(); window.__rep.render();
+});
 
 // Voice warn flag on timer
 await page.evaluate(() => {
