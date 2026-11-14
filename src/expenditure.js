@@ -1,6 +1,6 @@
 // MacroFactor-style adaptive expenditure estimate (pure).
 // Expenditure ≈ average logged intake + energy from the weight trend change.
-// Suggestion only — never changes Coach Dre's targets.
+// Suggestion only — never changes Coach Brooke's targets.
 import { parseYmd, addDays, ymd } from './store.js';
 
 // DST-safe whole-day index
@@ -64,10 +64,10 @@ export function expenditureAdvice({ expenditure, avgIntake, curLb, targetKcal })
   if (pctAtTarget > 1.5) {
     const add = r50(targetKcal - (expenditure - curLb * 0.01 * KCAL_PER_LB / 7));
     kind = 'fast';
-    text = `At ${targetKcal.toLocaleString()} kcal you'd lose ~${atTarget.toFixed(1)} lb/wk (${pctAtTarget.toFixed(1)}% BW) — faster than is ideal for keeping muscle. Ask Coach Dre about ~+${Math.abs(add)} kcal/day (mostly carbs around training).`;
+    text = `At ${targetKcal.toLocaleString()} kcal you'd lose ~${atTarget.toFixed(1)} lb/wk (${pctAtTarget.toFixed(1)}% BW) — faster than is ideal for keeping muscle. Ask Coach Brooke about ~+${Math.abs(add)} kcal/day (mostly carbs around training).`;
   } else if (pctAtTarget < 0.5) {
     kind = 'slow';
-    text = `At ${targetKcal.toLocaleString()} kcal you'd lose ~${Math.max(0, atTarget).toFixed(1)} lb/wk. Check logging (oils, sauces, drinks) for a week before changing anything, then ask Coach Dre.`;
+    text = `At ${targetKcal.toLocaleString()} kcal you'd lose ~${Math.max(0, atTarget).toFixed(1)} lb/wk. Check logging (oils, sauces, drinks) for a week before changing anything, then ask Coach Brooke.`;
   } else {
     text = `At ${targetKcal.toLocaleString()} kcal you'd lose ~${atTarget.toFixed(1)} lb/wk (${pctAtTarget.toFixed(1)}% BW) — right in the muscle-sparing zone. Keep going.`;
   }

@@ -41,14 +41,14 @@ test('DB lower (split squat): +10 rule = +5 per hand, explained', () => {
 });
 
 test('DB upper: +5 rule → next DB up (+5/hand)', () => {
-  const r = suggestNext({ ex: 'incline_db_press', sets: 3, reps: [8, 12] }, X('incline_db_press'), [H(S(60, [12, 12, 12]))]);
+  const r = suggestNext({ ex: 'incline_db_press', sets: 3, reps: [8, 10] }, X('incline_db_press'), [H(S(60, [10, 10, 10]))]);
   assert.equal(r.weight, 65); assert.match(r.text, /\+5 lb\/hand \(next DB up\)/);
 });
 
 test('machine stack (lat pulldown, default 10): +5 rule rounds to next stack step', () => {
   assert.equal(defaultIncrement(X('lat_pulldown')), 10);
   assert.equal(defaultIncrement(X('leg_press')), 10);
-  const r = suggestNext({ ex: 'lat_pulldown', sets: 3, reps: [8, 12] }, X('lat_pulldown'), [H(S(160, [12, 12, 12]))]);
+  const r = suggestNext({ ex: 'lat_pulldown', sets: 3, reps: [10, 12] }, X('lat_pulldown'), [H(S(160, [12, 12, 12]))]);
   assert.equal(r.weight, 170); assert.match(r.text, /next stack step/);
 });
 
@@ -132,7 +132,7 @@ test('only bad-day history → repeat that weight', () => {
 });
 
 test('assisted pull-up progresses by REDUCING assistance', () => {
-  const r = suggestNext({ ex: 'assisted_pullup', sets: 3, reps: [8, 12] }, X('assisted_pullup'), [H(S(90, [12, 12, 12]))]);
+  const r = suggestNext({ ex: 'assisted_pullup', sets: 3, reps: [6, 10] }, X('assisted_pullup'), [H(S(90, [10, 10, 10]))]);
   assert.equal(r.weight, 80);
 });
 
@@ -184,6 +184,6 @@ test('week math is DST-safe (America/Los_Angeles spring forward & fall back)', (
   if (process.env.TZ === 'America/Los_Angeles') assert.equal(new Date(2027, 2, 15).getTimezoneOffset(), 420);
 });
 
-test('rules match Coach Dre', () => {
+test('rules match Coach Brooke', () => {
   assert.deepEqual([RULES.upperJump, RULES.lowerJump, RULES.deloadSets, RULES.badDayLifts, RULES.badDaySets], [5, 10, 2, 2, 2]);
 });

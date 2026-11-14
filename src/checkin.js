@@ -1,11 +1,11 @@
-// Weekly Coach Dre check-in summary (pure plain-text builder).
+// Weekly Coach Brooke check-in summary (pure plain-text builder).
 
 import { state, ymd, parseYmd, mondayOf, addDays } from './store.js';
 import { PROGRAM } from './program.js';
 import { WD_LONG, doneSessions, e1rm, scheduleFor, historyFor, suppAdherence, injectionStatus } from './logic.js';
 import { exercise } from './exercises.js';
 import { lossRate, movingAverage, muscleRiskFlag } from './fatloss.js';
-import { weekOf } from './progression.js';
+import { weekOf, setScore, logKind, bwOn } from './progression.js';
 import { estimateExpenditure } from './expenditure.js';
 
 function avg(nums) {
@@ -49,7 +49,7 @@ function topSet(ex) {
   return best;
 }
 
-/** Build a plain-text weekly summary for Coach Dre. */
+/** Build a plain-text weekly summary for Coach Brooke. */
 export function buildCheckIn(ref = new Date(), st = state) {
   // Use the just-finished week if today is Monday (Boss opens it Monday morning).
   // Otherwise summarize the current week-to-date.
@@ -81,14 +81,16 @@ export function buildCheckIn(ref = new Date(), st = state) {
     const last = thisW[0]; // newest first
     const prior = hist.find(h => h.session.date < from);
     const top = topSet(last.ex);
-    const eNow = Math.max(...last.ex.sets.map(s => e1rm(+s.weight, +s.reps)));
-    const ePrev = prior ? Math.max(...prior.ex.sets.map(s => e1rm(+s.weight, +s.reps))) : null;
+    const exm = exercise(id); const kind = logKind(exm);
+    const sc = h => Math.max(...h.ex.sets.map(s => setScore(exm, s, bwOn(st.bodyweight, h.session.date))));
+    const eNow = sc(last);
+    const ePrev = prior ? sc(prior) : null;
     const dE = ePrev ? +((eNow - ePrev) / ePrev * 100).toFixed(1) : null;
     if (dE != null && dE <= -3) drops.push({ id, name: exercise(id).name, dE });
     const prs = last.ex.sets.filter(s => s.pr && s.pr.length).length;
     liftLines.push({
-      name: exercise(id).name,
-      top: top ? `${+top.weight}×${top.reps}` : '—',
+      name: exercise(id).name, kind,
+      top: !top ? '—' : kind === 'timed' ? `${Math.max(...last.ex.sets.map(s => +s.reps))} s` : kind === 'reps' ? `${Math.max(...last.ex.sets.map(s => +s.reps))} reps` : kind === 'assisted' ? `${+top.weight === 0 ? 'BW' : `−${+top.weight} assist`}×${top.reps}` : `${+top.weight}×${top.reps}`,
       e1rm: Math.round(eNow),
       dE,
       prs,
@@ -101,6 +103,8 @@ export function buildCheckIn(ref = new Date(), st = state) {
   const proteins = [], kcals = [], fats = [], carbs = [];
   const sleeps = [], waters = [];
   const stepsDays = [];
+  const stepDows = (st.settings.schedule || []).map((x, i) => (x && x.type === 'steps' ? i : -1)).filter(i => i >= 0);
+  const stepDayNames = stepDows.length ? [1, 2, 3, 4, 5, 6, 0].filter(i => stepDows.includes(i)).map(i => WD_LONG[i].slice(0, 3)).join('/') : 'step days';
   let suppDays = 0, suppOk = 0, foodDays = 0;
   for (const k of keys) {
     const d = st.daily[k];
@@ -116,7 +120,7 @@ export function buildCheckIn(ref = new Date(), st = state) {
     if (d.sleep != null) sleeps.push(d.sleep);
     if (d.waterOz) waters.push(d.waterOz);
     const wd = parseYmd(k).getDay();
-    if ([0, 2, 4].includes(wd) && d.steps) stepsDays.push({ k, steps: d.steps, wd }); // Sun Tue Thu
+    if (stepDows.includes(wd) && d.steps) stepsDays.push({ k, steps: d.steps, wd }); // scheduled step-walk days
     const a = suppAdherence(k);
     if (a) { suppDays++; if (a.n === a.total) suppOk++; }
   }
@@ -163,8 +167,9 @@ export function buildCheckIn(ref = new Date(), st = state) {
   lines.push('LIFTS (top set · e1RM change vs prior)');
   if (!liftLines.length) lines.push('  (no lifts this week)');
   for (const L of liftLines) {
-    const d = L.dE == null ? 'new' : `${L.dE > 0 ? '+' : ''}${L.dE}% e1RM`;
-    lines.push(`  ${L.name}: ${L.top} · e1RM ${L.e1rm}${L.dE != null ? ` (${d})` : ''}${L.prs ? ` · ${L.prs} PR` : ''}`);
+    const noLoad = L.kind === 'timed' || L.kind === 'reps';
+    const d = L.dE == null ? 'new' : `${L.dE > 0 ? '+' : ''}${L.dE}%${noLoad ? '' : ' e1RM'}`;
+    lines.push(`  ${L.name}: ${L.top}${noLoad ? '' : ` · e1RM ${L.e1rm}`}${L.dE != null ? ` (${d})` : ''}${L.prs ? ` · ${L.prs} PR` : ''}`);
   }
   lines.push(`  PRs this week: ${prCount}`);
   lines.push('');
@@ -175,9 +180,9 @@ export function buildCheckIn(ref = new Date(), st = state) {
   if (energy && energy.ok) lines.push(`  Est. burn (food log + weight trend): ~${energy.expenditure.toLocaleString()} kcal/day (${energy.confidence} confidence, eating ~${energy.avgIntake.toLocaleString()})`);
   if (avgF != null || avgC != null) lines.push(`  Fat avg: ${fmt0(avgF)} g / ${st.settings.targets.fat || 55} g · Carbs avg: ${fmt0(avgC)} g / ${st.settings.targets.carbs || 125} g`);
   if (stepsDays.length) {
-    lines.push('  Steps (Tue/Thu/Sun target 6–8k):');
+    lines.push(`  Steps (${stepDayNames} walk target ${Math.round((st.settings.targets.stepsMin || 6000) / 1000)}–${Math.round((st.settings.targets.stepsMax || 8000) / 1000)}k):`);
     for (const s of stepsDays) lines.push(`    ${WD_LONG[s.wd]} ${s.k}: ${s.steps.toLocaleString()}`);
-  } else lines.push('  Steps on Tue/Thu/Sun: not logged');
+  } else lines.push(`  Steps on ${stepDayNames}: not logged`);
   lines.push(`  Supplements 100% days: ${suppOk}/${suppDays || keys.length}`);
   lines.push(`  Tirzepatide: ${injLogged.length ? `logged ${injLogged.map(i => i.date).join(', ')}` : inj.status}`);
   if (sleeps.length) lines.push(`  Sleep avg: ${fmt1(avg(sleeps))} h`);

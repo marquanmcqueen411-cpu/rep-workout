@@ -66,12 +66,15 @@ test('backupPayload + filename shape', () => {
   assert.equal(canShareFiles(), false); // Node has no share API
 });
 
-test('DRE_SWAPS: every primary has exactly 3 ranked swaps that exist', () => {
+test('DRE_SWAPS: every lift has exactly 3 ranked swaps that exist', () => {
   const primaries = [
     'bench_press', 'chest_supported_row', 'seated_db_shoulder_press',
     'box_squat', 'romanian_deadlift', 'leg_press',
     'lat_pulldown', 'incline_db_press', 'cable_lateral_raise',
     'trap_bar_deadlift', 'split_squat', 'hip_thrust',
+    // v1.9 lifts — Coach Brooke's lists
+    'assisted_pullup', 'seated_cable_row', 'cable_triceps_pushdown', 'db_curl',
+    'seated_leg_curl', 'leg_extension', 'calf_raise', 'plank',
   ];
   assert.deepEqual(Object.keys(DRE_SWAPS).sort(), [...primaries].sort());
   for (const id of primaries) {
@@ -83,7 +86,7 @@ test('DRE_SWAPS: every primary has exactly 3 ranked swaps that exist', () => {
   assert.match(exercise('bb_deadlift_blocks').tag, /no trap bar/i);
 });
 
-test('swapAlternatives returns only Dre ranked list (lean)', () => {
+test('swapAlternatives returns only Brooke ranked list (lean)', () => {
   const { ranked, rest } = swapAlternatives('trap_bar_deadlift');
   assert.deepEqual(ranked.map(e => e.id), ['bb_deadlift_blocks', 'db_deadlift', 'smith_deadlift']);
   assert.equal(rest.length, 0);

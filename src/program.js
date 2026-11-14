@@ -1,5 +1,5 @@
 // ============================================================================
-//  PROGRAM FILE — Coach Dre's locked program for Boss.
+//  PROGRAM FILE — Coach Brooke's locked program for Boss.
 //  Edit this file to change the default program, schedule, targets, and rules.
 //  (Exercise ids refer to entries in src/exercises.js.)
 //  In-app edits (Settings → Program / Schedule / Targets) are saved on the
@@ -7,60 +7,81 @@
 // ============================================================================
 
 export const PROGRAM = {
-  id: 'dre-ul4-v1',
-  name: "Coach Dre — Upper/Lower x4",
+  id: 'dre-ul4-v2',
+  name: "Coach Brooke — Upper/Lower 4-day",
   rir: 2,                 // leave 2 reps in reserve on every working set
   cycleWeeks: 6,          // program weeks per cycle
   deloadWeek: 6,          // week 6 of every cycle is a deload
+  // Workout ids stay U1/L1/U2/L2 so logged history and the rotation carry over from v1.
   workouts: [
     {
-      id: 'U1', name: 'Upper 1', short: 'U1',
+      id: 'U1', name: 'Upper A', short: 'UA',
       exercises: [
-        { ex: 'bench_press',          sets: 3, reps: [6, 8] },
-        { ex: 'chest_supported_row',  sets: 3, reps: [8, 10] },
+        { ex: 'bench_press',              sets: 3, reps: [6, 8] },
+        { ex: 'chest_supported_row',      sets: 3, reps: [8, 10] },
         { ex: 'seated_db_shoulder_press', sets: 3, reps: [8, 10] },
+        { ex: 'lat_pulldown',             sets: 3, reps: [10, 12] },
+        { ex: 'cable_triceps_pushdown',   sets: 3, reps: [12, 15] },
       ],
     },
     {
-      id: 'L1', name: 'Lower 1', short: 'L1',
+      id: 'L1', name: 'Lower A', short: 'LA',
       exercises: [
-        { ex: 'box_squat',            sets: 3, reps: [6, 8] },
-        { ex: 'romanian_deadlift',    sets: 3, reps: [8, 10] },
-        { ex: 'leg_press',            sets: 3, reps: [10, 12] },
+        { ex: 'box_squat',          sets: 3, reps: [6, 8] },
+        { ex: 'romanian_deadlift',  sets: 3, reps: [8, 10] },
+        { ex: 'leg_press',          sets: 3, reps: [10, 12] },
+        { ex: 'seated_leg_curl',    sets: 3, reps: [10, 12] },
+        { ex: 'calf_raise',         sets: 3, reps: [12, 15] },
       ],
     },
     {
-      id: 'U2', name: 'Upper 2', short: 'U2',
+      id: 'U2', name: 'Upper B', short: 'UB',
       exercises: [
-        { ex: 'lat_pulldown',         sets: 3, reps: [8, 12] },
-        { ex: 'incline_db_press',     sets: 3, reps: [8, 12] },
-        { ex: 'cable_lateral_raise',  sets: 3, reps: [12, 15] },
+        { ex: 'incline_db_press',    sets: 3, reps: [8, 10] },
+        { ex: 'assisted_pullup',     sets: 3, reps: [6, 10] },
+        { ex: 'seated_cable_row',    sets: 3, reps: [10, 12] },
+        { ex: 'cable_lateral_raise', sets: 3, reps: [12, 15] },
+        { ex: 'db_curl',             sets: 3, reps: [10, 12] },
       ],
     },
     {
-      id: 'L2', name: 'Lower 2', short: 'L2',
+      id: 'L2', name: 'Lower B', short: 'LB',
       exercises: [
-        { ex: 'trap_bar_deadlift',    sets: 3, reps: [6, 8] },
-        { ex: 'split_squat',          sets: 3, reps: [8, 10], note: 'per leg' },
-        { ex: 'hip_thrust',           sets: 3, reps: [10, 12] },
+        { ex: 'trap_bar_deadlift', sets: 3, reps: [6, 8] },
+        { ex: 'split_squat',       sets: 3, reps: [8, 10], note: 'per leg' },
+        { ex: 'hip_thrust',        sets: 3, reps: [10, 12] },
+        { ex: 'leg_extension',     sets: 3, reps: [12, 15] },
+        { ex: 'plank',             sets: 3, reps: [30, 45], note: 'seconds' },
       ],
     },
   ],
 };
 
+/** The plan before v1.9 (3 lifts per day) — only used to migrate saved plans. */
+export const LEGACY_PROGRAM_V1 = {
+  id: 'dre-ul4-v1',
+  workouts: {
+    U1: ['bench_press', 'chest_supported_row', 'seated_db_shoulder_press'],
+    L1: ['box_squat', 'romanian_deadlift', 'leg_press'],
+    U2: ['lat_pulldown', 'incline_db_press', 'cable_lateral_raise'],
+    L2: ['trap_bar_deadlift', 'split_squat', 'hip_thrust'],
+  },
+  schedule: ['steps', 'lift:U1', 'steps', 'lift:L1', 'steps', 'lift:U2', 'lift:L2'],
+};
+
 // Weekly schedule, indexed by JS weekday (0 = Sunday … 6 = Saturday).
 // type: 'lift' (with workout id) | 'steps' | 'class' (class / other training) | 'rest'
 export const DEFAULT_SCHEDULE = [
-  { type: 'steps' },                    // Sun
-  { type: 'lift', workout: 'U1' },      // Mon
-  { type: 'steps' },                    // Tue
-  { type: 'lift', workout: 'L1' },      // Wed
-  { type: 'steps' },                    // Thu
-  { type: 'lift', workout: 'U2' },      // Fri
-  { type: 'lift', workout: 'L2' },      // Sat
+  { type: 'steps' },                    // Sun — 6–8k step walk
+  { type: 'lift', workout: 'U1' },      // Mon — Upper A
+  { type: 'rest' },                     // Tue — always rest
+  { type: 'lift', workout: 'L1' },      // Wed — Lower A
+  { type: 'steps' },                    // Thu — 6–8k step walk
+  { type: 'lift', workout: 'U2' },      // Fri — Upper B
+  { type: 'lift', workout: 'L2' },      // Sat — Lower B
 ];
 
-// Daily targets from Coach Dre (editable in Settings).
+// Daily targets from Coach Brooke (editable in Settings).
 export const DEFAULT_TARGETS = {
   kcal: 1800,
   protein: 210,   // g

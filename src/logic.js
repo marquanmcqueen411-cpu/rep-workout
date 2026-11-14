@@ -1,7 +1,7 @@
 import { state, ymd, parseYmd, mondayOf, addDays } from './store.js';
 import { exercise } from './exercises.js';
 import { PROGRESSION } from './program.js';
-import { suggestNext, defaultIncrement, e1rm, weekOf, bwOn, relStrength } from './progression.js';
+import { suggestNext, defaultIncrement, e1rm, weekOf, bwOn, relStrength, setScore, logKind } from './progression.js';
 
 export const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const WD_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -54,15 +54,19 @@ export function suggest(slot, { deload = false, badDay = false } = {}) {
 export function priorSets(exId) { return historyFor(exId).flatMap(h => h.ex.sets); }
 export function exStats(exId) {
   const hist = historyFor(exId).slice().reverse();
-  let bestE = 0, heaviest = 0, bestSet = null;
+  const ex = exercise(exId); const kind = logKind(ex);
+  // "top" = heaviest weight; for assisted = least assistance; for timed/reps = most seconds/reps
+  const topOf = s => (kind === 'timed' || kind === 'reps' ? +s.reps || 0 : +s.weight || 0);
+  const better = (a, b) => (kind === 'assisted' ? a < b : a > b);
+  let bestE = 0, heaviest = null, bestSet = null;
   const pts = hist.map(h => {
-    const e = Math.max(...h.ex.sets.map(s => e1rm(+s.weight, +s.reps)));
-    const top = Math.max(...h.ex.sets.map(s => +s.weight || 0));
-    for (const s of h.ex.sets) { const v = e1rm(+s.weight, +s.reps); if (v > bestE) { bestE = v; bestSet = s; } if (+s.weight > heaviest) heaviest = +s.weight; }
     const bw = bwOn(state.bodyweight, h.session.date);
-    return { t: new Date(h.session.start).getTime(), date: h.session.date, e1rm: e, top, bw, rel: relStrength(e, bw), session: h.session, ex: h.ex };
+    const e = Math.max(...h.ex.sets.map(s => setScore(ex, s, bw)));
+    const tops = h.ex.sets.map(topOf); const top = kind === 'assisted' ? Math.min(...tops) : Math.max(...tops);
+    for (const s of h.ex.sets) { const v = setScore(ex, s, bw); if (v > bestE) { bestE = v; bestSet = s; } if (heaviest == null || better(topOf(s), heaviest)) heaviest = topOf(s); }
+    return { t: new Date(h.session.start).getTime(), date: h.session.date, e1rm: e, top, bw, rel: kind === 'timed' || kind === 'reps' ? null : relStrength(e, bw), session: h.session, ex: h.ex };
   });
-  return { pts, bestE, heaviest, bestSet };
+  return { pts, bestE, heaviest: heaviest ?? 0, bestSet, kind };
 }
 
 export const fmtW = w => (w == null || w === '' ? '—' : `${+w % 1 ? (+w).toFixed(1) : +w} lb`);

@@ -1,7 +1,7 @@
 // ============================================================================
 //  EXERCISE LIBRARY — LA Fitness-friendly equipment.
 //  region: 'upper' | 'lower'  (drives +5 / +10 lb progression)
-//  pattern: movement pattern · swaps: Coach Dre ranked lists in DRE_SWAPS
+//  pattern: movement pattern · swaps: Coach Brooke ranked lists in DRE_SWAPS
 //  primary/secondary: muscle ids used by the recovery map
 //  demo: verified YouTube video {id,title,channel} when available; else search link
 // ============================================================================
@@ -72,9 +72,9 @@ export const EXERCISES = [
     ['lats'], ['upper_back', 'biceps', 'rear_delts'],
     ['Thighs locked under pad; grip slightly wider than shoulders.', 'Lean back slightly, chest up.',
      'Drive elbows down to your sides; bar to upper chest.', 'Control up to a full stretch.'], { equip: 'machine' }),
-  E('assisted_pullup', 'Assisted Pull-Up', 'Assisted pull-up/dip machine', 'upper', 'v_pull',
+  E('assisted_pullup', 'Pull-Up / Assisted Pull-Up', 'Pull-up bar or assisted pull-up machine', 'upper', 'v_pull',
     ['lats'], ['upper_back', 'biceps'],
-    ['More assistance weight = easier.', 'Full hang to chin over bar.', 'Shoulders down, no kipping.'], { equip: 'machine', assisted: true }),
+    ['Log the ASSISTANCE weight (0 = bodyweight). Less assistance = progress.', 'Full hang to chin over bar.', 'Shoulders down, no kipping.', 'Once you own 0 lb at the top of the range, ask Coach Brooke about adding weight.'], { equip: 'machine', assisted: true }),
   E('cable_pulldown_neutral', 'Neutral-Grip Cable Pulldown', 'Cable + V-handle', 'upper', 'v_pull',
     ['lats'], ['upper_back', 'biceps'],
     ['Pull handle to upper chest.', 'Elbows drive down & back.', 'Full stretch each rep.'], { equip: 'cable' }),
@@ -122,7 +122,7 @@ export const EXERCISES = [
   E('smith_deadlift', 'Smith Machine Deadlift', 'Smith machine', 'lower', 'hinge',
     ['glutes', 'hamstrings'], ['quads', 'lower_back'],
     ['Bar over mid-foot.', 'Flat back, brace.', 'Stand tall; control down.'], { equip: 'smith' }),
-  E('lying_leg_curl', 'Lying/Seated Leg Curl', 'Leg curl machine', 'lower', 'ham_iso',
+  E('lying_leg_curl', 'Lying Leg Curl', 'Leg curl machine', 'lower', 'ham_iso',
     ['hamstrings'], ['calves'], ['Knees line up with machine pivot.', 'Curl fully, pause.', 'Slow lowering.'], { isolation: true , equip: 'machine' }),
   // ---- Leg press / quad
   E('leg_press', 'Leg Press', 'Leg press machine', 'lower', 'squat',
@@ -155,7 +155,7 @@ export const EXERCISES = [
     ['glutes'], ['hamstrings'], ['Bar padded over hips.', 'Drive up to flat torso.', 'Squeeze 1 sec.'], { equip: 'smith' }),
   E('glute_drive_machine', 'Hip Thrust Machine', 'Glute drive / hip thrust machine', 'lower', 'glute',
     ['glutes'], ['hamstrings'], ['Belt over hips.', 'Drive up, squeeze.', 'Control down.'], { equip: 'machine' }),
-  // ---- Dre swap additions
+  // ---- Brooke swap additions
   E('chest_supported_tbar_row', 'Chest-Supported T-Bar Row', 'T-bar / chest-supported row', 'upper', 'h_pull',
     ['upper_back', 'lats'], ['rear_delts', 'biceps'],
     ['Chest glued to the pad.', 'Pull elbows back toward hips.', 'Squeeze at the top; control the stretch.'], { equip: 'machine' }),
@@ -212,8 +212,57 @@ export const EXERCISES = [
     ['biceps'], ['forearms'], ['Elbows at sides.', 'Curl up, squeeze.', 'Slow down.'], { isolation: true , equip: 'cable' }),
   E('face_pull', 'Cable Face Pull', 'Cable + rope', 'upper', 'h_pull',
     ['rear_delts'], ['upper_back', 'traps'], ['Rope at face height.', 'Pull to forehead, elbows high.', 'Squeeze rear delts.'], { isolation: true , equip: 'cable' }),
+  E('seated_leg_curl', 'Seated Leg Curl', 'Seated leg curl machine', 'lower', 'ham_iso',
+    ['hamstrings'], [], ['Knees line up with the machine pivot; thigh pad snug.', 'Lean forward slightly for a bigger hamstring stretch.', 'Curl fully, pause 1 sec, lower slowly.'], { isolation: true, equip: 'machine' }),
+  E('db_curl', 'Dumbbell Curl', 'Dumbbells', 'upper', 'arms',
+    ['biceps'], ['forearms'], ['Elbows pinned at your sides.', 'Curl up and turn the pinky up; squeeze.', 'Lower under control — no swinging.'], { isolation: true, perHand: true, equip: 'db' }),
+  E('plank', 'Plank', 'Bodyweight (floor)', 'lower', 'core',
+    ['abs'], ['obliques'], ['Forearms under shoulders; body in one straight line.', 'Squeeze glutes and brace like you\'re about to be punched.', 'Breathe; stop when the hips sag. Log seconds held.'], { isolation: true, timed: true, equip: 'bodyweight' }),
+  E('banded_pushup', 'Banded Push-Up (home)', 'Bodyweight + resistance band', 'upper', 'h_push',
+    ['chest'], ['front_delts', 'triceps'], ['Band across your upper back, ends under your hands.', 'Hands just outside shoulders; body in a straight line.', 'Chest to an inch off the floor, elbows ~45°.', 'Top of range on all sets → heavier band or slower lowering.'], { bodyweight: true, equip: 'bodyweight', tag: 'Home', home: true }),
   E('calf_raise', 'Standing Calf Raise', 'Calf raise machine / Smith', 'lower', 'calf',
     ['calves'], [], ['Full stretch at bottom.', 'Rise high, pause.', 'Slow lowering.'], { isolation: true , equip: 'machine' }),
+  // ---- Coach Brooke swaps for the v1.9 lifts (bodyweight/band = reps only, timed = seconds)
+  E('band_pulldown', 'Band Lat Pulldown (home)', 'Resistance band anchored high', 'upper', 'v_pull',
+    ['lats'], ['upper_back', 'biceps'], ['Anchor band high; kneel or sit facing it.', 'Pull elbows down to your sides; squeeze lats.', 'Slow return. Top of range on all sets → stronger band.'], { bodyweight: true, equip: 'bodyweight', tag: 'Home', home: true }),
+  E('assisted_pullup_machine', 'Assisted Pull-Up Machine', 'Assisted pull-up/dip machine', 'upper', 'v_pull',
+    ['lats'], ['upper_back', 'biceps'], ['Log the ASSISTANCE weight — less = progress.', 'Knees on the pad; full hang to chin over bar.', 'Shoulders down, no kipping.'], { equip: 'machine', assisted: true }),
+  E('band_assisted_pullup', 'Band-Assisted Pull-Up', 'Pull-up bar + loop band', 'upper', 'v_pull',
+    ['lats'], ['upper_back', 'biceps'], ['Loop band over the bar; knee or foot in the band.', 'Full hang to chin over bar, no kipping.', 'Log reps. Thinner band = progress.'], { bodyweight: true, equip: 'bodyweight' }),
+  E('band_row', 'Band Seated Row (home)', 'Resistance band around feet', 'upper', 'h_pull',
+    ['upper_back', 'lats'], ['biceps', 'rear_delts'], ['Sit tall, band around your feet.', 'Row elbows back, squeeze shoulder blades.', 'Slow return. Top of range → stronger band.'], { bodyweight: true, equip: 'bodyweight', tag: 'Home', home: true }),
+  E('rope_pushdown', 'Rope Pushdown', 'Cable + rope', 'upper', 'arms',
+    ['triceps'], [], ['Elbows pinned at your sides.', 'Push down and split the rope at the bottom.', 'Control up.'], { isolation: true, equip: 'cable' }),
+  E('overhead_cable_extension', 'Overhead Cable Triceps Extension', 'Cable + rope', 'upper', 'arms',
+    ['triceps'], [], ['Face away from the stack, rope behind your head.', 'Elbows point forward; extend fully.', 'Deep stretch on the way back.'], { isolation: true, equip: 'cable' }),
+  E('close_grip_pushup', 'Close-Grip Push-Up / Band Pushdown (home)', 'Bodyweight or band', 'upper', 'arms',
+    ['triceps'], ['chest', 'front_delts'], ['Hands under shoulders, elbows tucked to your ribs.', 'Or: band anchored high, elbows pinned, push down.', 'Log reps. Top of range → harder band / feet elevated.'], { bodyweight: true, equip: 'bodyweight', tag: 'Home', home: true }),
+  E('ez_bar_curl', 'EZ-Bar Curl', 'EZ curl bar', 'upper', 'arms',
+    ['biceps'], ['forearms'], ['Grip the angled part, elbows at your sides.', 'Curl up, squeeze.', 'Lower slowly — no swinging.'], { isolation: true, equip: 'barbell' }),
+  E('band_curl', 'Band Curl (home)', 'Resistance band', 'upper', 'arms',
+    ['biceps'], ['forearms'], ['Stand on the band, elbows at your sides.', 'Curl up, squeeze 1 sec.', 'Slow lowering. Top of range → stronger band.'], { isolation: true, bodyweight: true, equip: 'bodyweight', tag: 'Home', home: true }),
+  E('stability_ball_leg_curl', 'Stability-Ball Leg Curl', 'Stability ball', 'lower', 'ham_iso',
+    ['hamstrings'], ['glutes'], ['Heels on the ball, hips up.', 'Curl the ball in while keeping hips high.', 'Slow roll out. Log reps.'], { isolation: true, bodyweight: true, equip: 'bodyweight' }),
+  E('band_leg_curl', 'Band Leg Curl (home)', 'Resistance band anchored low', 'lower', 'ham_iso',
+    ['hamstrings'], [], ['Anchor band low in front; sit or lie face down.', 'Curl heel to butt, pause.', 'Slow return. Top of range → stronger band.'], { isolation: true, bodyweight: true, equip: 'bodyweight', tag: 'Home', home: true }),
+  E('spanish_squat', 'Spanish Squat (band)', 'Heavy band anchored behind knees', 'lower', 'squat',
+    ['quads'], ['glutes'], ['Band behind your knees, anchored to a rack.', 'Sit back, shins vertical, torso upright.', 'Go to ~90°; drive up. Log reps.'], { bodyweight: true, equip: 'bodyweight' }),
+  E('heels_elevated_goblet_squat', 'Heels-Elevated Goblet Squat', 'Dumbbell + plate/wedge under heels', 'lower', 'squat',
+    ['quads'], ['glutes', 'adductors'], ['Heels on a plate, DB at your chest.', 'Knees travel forward; sit straight down.', 'Full depth, drive up.'], { equip: 'db' }),
+  E('band_leg_extension', 'Band Leg Extension (home)', 'Resistance band anchored behind chair', 'lower', 'quad_iso',
+    ['quads'], [], ['Sit tall, band around the ankle.', 'Extend fully, squeeze 1 sec.', 'Slow return. Top of range → stronger band.'], { isolation: true, bodyweight: true, equip: 'bodyweight', tag: 'Home', home: true }),
+  E('seated_calf_raise', 'Seated Calf Raise', 'Seated calf raise machine', 'lower', 'calf',
+    ['calves'], [], ['Pad snug on lower thighs.', 'Full stretch at bottom, pause.', 'Rise high, slow down.'], { isolation: true, equip: 'machine' }),
+  E('leg_press_calf_raise', 'Leg-Press Calf Raise', 'Leg press machine', 'lower', 'calf',
+    ['calves'], [], ['Balls of feet on the bottom edge of the platform.', 'Deep stretch, pause.', 'Press through the big toe; safety handles on.'], { isolation: true, equip: 'machine' }),
+  E('single_leg_db_calf_raise', 'Single-Leg DB Calf Raise (home)', 'Dumbbell + step', 'lower', 'calf',
+    ['calves'], [], ['Ball of one foot on a step, DB in the same hand.', 'Full stretch, pause, rise high.', 'Log the DB weight; do both legs.'], { isolation: true, equip: 'db', tag: 'Home', home: true }),
+  E('dead_bug', 'Dead Bug', 'Bodyweight (floor)', 'lower', 'core',
+    ['abs'], ['obliques'], ['Low back pressed into the floor.', 'Reach opposite arm and leg out slowly; exhale.', 'Log reps per side.'], { isolation: true, bodyweight: true, equip: 'bodyweight', swapReps: [8, 8], swapNote: 'per side' }),
+  E('pallof_press', 'Pallof Press', 'Cable + D-handle (or band)', 'upper', 'core',
+    ['obliques', 'abs'], [], ['Stand side-on to the cable, handle at your chest.', 'Press straight out; don\'t let it twist you.', 'Pause 2 sec, return. Log weight; per side.'], { isolation: true, equip: 'cable', swapReps: [10, 10], swapNote: 'per side' }),
+  E('side_plank', 'Side Plank', 'Bodyweight (floor)', 'lower', 'core',
+    ['obliques'], ['abs'], ['Elbow under shoulder, body in a straight line.', 'Hips high; squeeze glutes.', 'Log seconds per side.'], { isolation: true, timed: true, equip: 'bodyweight', swapReps: [20, 30], swapNote: 'per side' }),
 ];
 
 export const EX_BY_ID = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
@@ -280,13 +329,44 @@ export const VIDEOS = {
   hip_thrust: { id: 'kqi4_EPpwCk', title: 'How To Do Hip Thrusts The Right Way', channel: 'Renaissance Periodization' },
   glute_drive_machine: { id: 'ZSPmIyX9RZs', title: 'Machine Hip Thrust', channel: 'Renaissance Periodization' },
   single_leg_db_hip_thrust: { id: 'baTlVyx3RS8', title: 'Single Leg Hip Thrust', channel: 'Bret Contreras Glute Guy' },
+  cable_triceps_pushdown: { id: '6Fzep104f0s', title: 'Cable Triceps Pushdown', channel: 'Renaissance Periodization' },
+  seated_leg_curl: { id: 'Orxowest56U', title: 'Seated Leg Curl', channel: 'Renaissance Periodization' },
+  calf_raise: { id: 'VArtkSV3eN0', title: 'How to Do Standing Calf Raises CORRECTLY (Stop Making These Mistakes!)', channel: 'Colossus Fitness' },
+  db_curl: { id: 'iixND1P2lik', title: 'Alternating Dumbbell Curl', channel: 'Renaissance Periodization' },
+  leg_extension: { id: 'm0FOpMEgero', title: 'Leg Extension', channel: 'Renaissance Periodization' },
+  plank: { id: 'mwlp75MS6Rg', title: 'How to do a Plank | Proper Form & Technique | NASM', channel: 'National Academy of Sports Medicine (NASM)' },
+  banded_pushup: { id: 'cOFwFzzLFWw', title: 'Movement Demo - Push Ups With Bands', channel: 'Rogue Fitness' },
+  // Coach Brooke swaps (oEmbed-verified 2026-11-13)
+  single_arm_cable_pulldown: { id: "r68DrqhNSis", title: "Exercise Index -  Single Arm Pulldown", channel: "mountaindog1" },
+  band_pulldown: { id: "8oRWrUxU-6I", title: "Banded Lat Pulldown At Home", channel: "Beyond Fitness Coaching" },
+  assisted_pullup_machine: { id: "gx0RWT7WbmA", title: "How To PROPERLY Use The Assisted Pull Up Machine (DO MORE PULL UPS)", channel: "Colossus Fitness" },
+  band_assisted_pullup: { id: "B_VkNQS5YLs", title: "How to do a Band Assisted Pull-Up | Proper Form & Technique | NASM", channel: "National Academy of Sports Medicine (NASM)" },
+  band_row: { id: "qcWV51tONJ8", title: "Seated Rows with Resistance Band", channel: "MGHOrthopaedics" },
+  one_arm_db_row: { id: "k2kVniB5eQI", title: "RP 1-Arm Dumbbell Row", channel: "Renaissance Periodization" },
+  rope_pushdown: { id: "-xa-6cQaZKY", title: "Rope Pushdown", channel: "Renaissance Periodization" },
+  overhead_cable_extension: { id: "1u18yJELsh0", title: "Cable Overhead Triceps Extension", channel: "Renaissance Periodization" },
+  close_grip_pushup: { id: "2cdIRe5tcqI", title: "Close Grip Pushup", channel: "Atomic Athlete" },
+  ez_bar_curl: { id: "tJIFTI9wZOw", title: "EZ Bar Curl For Growth | Targeting The Muscle", channel: "Renaissance Periodization" },
+  band_curl: { id: "pXS-fSPWpk8", title: "Resistance Band Bicep Curls", channel: "SKLZ" },
+  lying_leg_curl: { id: "n5WDXD_mpVY", title: "Lying Leg Curl", channel: "Renaissance Periodization" },
+  stability_ball_leg_curl: { id: "XkESHgkTdFw", title: "Swiss Ball Hamstring Curl | Nuffield Health", channel: "Nuffield Health" },
+  band_leg_curl: { id: "M_dUNslNjBU", title: "Seated Band Leg Curl", channel: "Men's Health" },
+  spanish_squat: { id: "hgFxm5KIF7M", title: "How to Set Up and Perform Spanish Squats Correctly (Don't Make This Mistake!)", channel: "E3 Rehab" },
+  heels_elevated_goblet_squat: { id: "GPzRf3sfpbU", title: "Heels Elevated Goblet Squat", channel: "The Active Life" },
+  band_leg_extension: { id: "br9nFKXJIKc", title: "How to Set Up, Perform, and Program Banded Leg Extensions at Home (Strength, Hypertrophy, Rehab)", channel: "E3 Rehab" },
+  seated_calf_raise: { id: "6O5hh1rBtx8", title: "How to PROPERLY Calf Raise (SEATED CALF RAISE TIPS)", channel: "Colossus Fitness" },
+  leg_press_calf_raise: { id: "KxEYX_cuesM", title: "Leg Press Calves", channel: "Renaissance Periodization" },
+  single_leg_db_calf_raise: { id: "hP6ntc92ASk", title: "Single-Leg Dumbbell Calf Raise", channel: "Testosterone Nation" },
+  dead_bug: { id: "GbSC02oU3To", title: "How to Do a Dead Bug: A Guide from Physical Therapists", channel: "Hinge Health" },
+  pallof_press: { id: "QGrE4L2o4J0", title: "Pallof Press | Core Strengthening Exercise", channel: "Dr. Carl Baird" },
+  side_plank: { id: "NXr4Fw8q60o", title: "How to Do a Side Plank | Ab Workout", channel: "Howcast" },
 };
 
 for (const ex of EXERCISES) {
   if (VIDEOS[ex.id]) ex.video = VIDEOS[ex.id];
 }
 
-// Coach Dre's ranked swap lists (exactly 3, in order) for each primary lift.
+// Coach Brooke's ranked swap lists (exactly 3, in order) for each primary lift.
 export const DRE_SWAPS = {
   bench_press: ['db_bench_press', 'smith_bench_press', 'machine_chest_press'],
   chest_supported_row: ['chest_supported_tbar_row', 'seated_cable_row', 'machine_row'],
@@ -294,16 +374,39 @@ export const DRE_SWAPS = {
   box_squat: ['smith_box_squat', 'hack_squat', 'goblet_box_squat'],
   romanian_deadlift: ['db_romanian_deadlift', 'smith_rdl', 'back_extension_45'],
   leg_press: ['hack_squat', 'smith_squat', 'belt_squat'],
-  lat_pulldown: ['machine_pulldown', 'assisted_pullup', 'single_arm_cable_pulldown'],
+  lat_pulldown: ['single_arm_cable_pulldown', 'machine_pulldown', 'band_pulldown'],
   incline_db_press: ['incline_smith_press', 'incline_machine_press', 'incline_bb_press'],
   cable_lateral_raise: ['db_lateral_raise', 'machine_lateral_raise', 'leaning_db_lateral'],
   trap_bar_deadlift: ['bb_deadlift_blocks', 'db_deadlift', 'smith_deadlift'],
   split_squat: ['smith_split_squat', 'db_reverse_lunge', 'bulgarian_split_squat'],
   hip_thrust: ['smith_hip_thrust', 'glute_drive_machine', 'single_leg_db_hip_thrust'],
+  // v1.9 lifts — Coach Brooke's ranked swaps (items tagged Home are home options)
+  assisted_pullup: ['assisted_pullup_machine', 'lat_pulldown', 'band_assisted_pullup'],
+  seated_cable_row: ['machine_row', 'one_arm_db_row', 'band_row'],
+  cable_triceps_pushdown: ['rope_pushdown', 'overhead_cable_extension', 'close_grip_pushup'],
+  db_curl: ['cable_curl', 'ez_bar_curl', 'band_curl'],
+  seated_leg_curl: ['lying_leg_curl', 'stability_ball_leg_curl', 'band_leg_curl'],
+  leg_extension: ['spanish_squat', 'heels_elevated_goblet_squat', 'band_leg_extension'],
+  calf_raise: ['seated_calf_raise', 'leg_press_calf_raise', 'single_leg_db_calf_raise'],
+  plank: ['dead_bug', 'pallof_press', 'side_plank'],
 };
 
-/** Dre's ranked swaps for a primary lift (exactly 3). Empty if not a primary. */
+// Coach Brooke's home swaps (no gym) — shown after the ranked list, tagged "Home".
+export const HOME_SWAPS = {
+  bench_press: ['banded_pushup'],
+};
+
+/** Brooke's ranked swaps for a lift (exactly 3). Items with home:true are home swaps (tagged "Home"). */
 export function alternatives(id) {
   const ids = DRE_SWAPS[id] || [];
   return ids.map(exercise);
+}
+export function homeAlternatives(id) {
+  return (HOME_SWAPS[id] || []).map(id2 => ({ ...exercise(id2), tag: 'Home', home: true }));
+}
+
+/** How a lift is logged: 'weight' (default), 'assisted' (assistance lb, less = better), 'timed' (seconds), 'reps' (bodyweight/band). */
+export function kindOf(ex) {
+  if (!ex) return 'weight';
+  return ex.timed ? 'timed' : ex.bodyweight ? 'reps' : ex.assisted ? 'assisted' : 'weight';
 }

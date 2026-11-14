@@ -1,7 +1,7 @@
 // ============================================================================
 //  PROGRESSIVE OVERLOAD ENGINE (pure functions — unit tested in tests/)
 //
-//  Base rules (Coach Dre): 3×3 at RIR 2. All sets at top of range →
+//  Base rules (Coach Brooke): 3 sets per lift at RIR 2. All sets at top of range →
 //  +5 lb upper / +10 lb lower. Week 6 = deload. Bad day = 2 lifts × 2 sets.
 //  On top of that:
 //   • Double progression per set: sets below the top of range aim +1 rep.
@@ -30,8 +30,23 @@ export function equipOf(ex) {
   if (t.includes('dumbbell')) return 'db';
   return 'machine';
 }
-export const EQUIP_LABEL = { barbell: 'Barbell', smith: 'Smith', db: 'Dumbbells (per hand)', machine: 'Machine / stack', cable: 'Cable stack' };
-const DEFAULT_INC = { barbell: 5, smith: 5, db: 5, machine: 10, cable: 5 };
+export const EQUIP_LABEL = { barbell: 'Barbell', smith: 'Smith', db: 'Dumbbells (per hand)', machine: 'Machine / stack', cable: 'Cable stack', bodyweight: 'Bodyweight' };
+const DEFAULT_INC = { barbell: 5, smith: 5, db: 5, machine: 10, cable: 5, bodyweight: 5 };
+
+/** 'weight' | 'assisted' (assistance lb — less is better) | 'timed' (reps field = seconds) | 'reps' (bodyweight/band). */
+export function logKind(ex) { return !ex ? 'weight' : ex.timed ? 'timed' : ex.bodyweight ? 'reps' : ex.assisted ? 'assisted' : 'weight'; }
+/**
+ * One comparable "strength score" per set:
+ * weight → Epley e1RM; assisted → e1RM of the load you actually lift (bodyweight − assistance);
+ * timed → seconds held; reps → reps.
+ */
+export function setScore(ex, set, bw = 250) {
+  const k = logKind(ex); const w = +set.weight || 0, r = +set.reps || 0;
+  if (k === 'timed' || k === 'reps') return r;
+  if (k === 'assisted') return r > 0 ? e1rm(Math.max(1, (+bw || 250) - w), r) : 0;
+  return e1rm(w, r);
+}
+export const scoreLabel = ex => ({ timed: 'Best hold', reps: 'Best reps', assisted: 'e1RM (BW − assist)', weight: 'e1RM' })[logKind(ex)];
 export function defaultIncrement(ex) { return ex.inc || DEFAULT_INC[equipOf(ex)] || 5; }
 
 export function roundTo(w, inc, mode = 'nearest') {
@@ -82,9 +97,12 @@ export function suggestNext(slot, ex, history = [], opts = {}) {
 
   const H = history.filter(h => !h.deload && !h.badDay && h.sets && h.sets.length);
   const any = history.filter(h => h.sets && h.sets.length);
+  const kind = logKind(ex);
+  if (kind === 'timed' || kind === 'reps') return suggestNoLoad(slot, kind, H, any, opts, out);
   if (!any.length) {
     return out({ kind: 'first', first: true, weight: null, targets: Array(N).fill(null),
-      text: `First time: enter your starting weight — pick a weight you can do for ${lo}–${hi} reps with ~2 reps left.` });
+      text: assisted ? `First time: enter the assistance weight (0 = bodyweight) that lets you do ${lo}–${hi} reps with ~2 left. Less assistance = progress.`
+        : `First time: enter your starting weight — pick a weight you can do for ${lo}–${hi} reps with ~2 reps left.` });
   }
   const base = H[0] || any[0];
   const ls = workingSets(base, N); const W = topW(ls);
@@ -134,9 +152,15 @@ export function suggestNext(slot, ex, history = [], opts = {}) {
       return out({ kind: 'hold', weight: W, targets: Array(N).fill(hi), last: lastStr,
         text: `${pre}Hit ${joinReps(ls)} at ${fmt(W)} but at failure (RIR 0) → hold ${fmt(W)} and own it at RIR 2.` });
     }
+    if (assisted && W <= 0) {
+      return out({ kind: 'hold', weight: 0, targets: Array(N).fill(hi), last: lastStr,
+        text: `${pre}Bodyweight pull-ups: hit ${joinReps(ls)} with no assistance → own the top of the range; ask Coach Brooke before adding weight.` });
+    }
     const easy = allRirLogged && rirs.every(r => r >= 3);
     const { jump, note } = jumpFor(ex, inc, easy ? 2 : 1);
     const w = assisted ? Math.max(0, W - jump) : W + jump;
+    if (assisted) return out({ kind: 'up', weight: w, targets: Array(N).fill(lo), last: lastStr, jumpNote: `−${fmt(W - w)} lb assistance`,
+      text: `${pre}Hit ${joinReps(ls)} with ${fmt(W)} lb assistance → ${fmt(w)} lb assistance today (−${fmt(W - w)} lb${w === 0 ? ', bodyweight!' : ''}).` });
     return out({ kind: 'up', weight: w, targets: Array(N).fill(lo), last: lastStr, jumpNote: note,
       text: `${pre}Hit ${joinReps(ls)} at ${fmt(W)} last time → ${fmt(w)} today (${note}${easy ? ', RIR 3+ felt easy → bigger jump' : ''}).` });
   }
@@ -153,6 +177,28 @@ export function suggestNext(slot, ex, history = [], opts = {}) {
   const held = ls.some(s => +s.reps < hi && hasRir(s) && +s.rir === 0);
   return out({ kind: 'reps', weight: W, targets: t, last: lastStr,
     text: `${pre}Hit ${joinReps(ls)} at ${fmt(W)} → stay at ${fmt(W)}, aim ${t.join(',')}${held ? ' (repeat reps on sets taken to failure)' : ''}.` });
+}
+
+/** Time-based (plank: seconds) and reps-only (banded push-up) lifts: progress by time / reps, never weight. */
+function suggestNoLoad(slot, kind, H, any, opts, out) {
+  const [lo, hi] = slot.reps; const N = slot.sets;
+  const u = kind === 'timed' ? ' s' : '';
+  const step = kind === 'timed' ? 5 : 1;
+  if (!any.length) return out({ kind: 'first', first: true, weight: 0, targets: Array(N).fill(lo),
+    text: kind === 'timed' ? `First time: hold ${lo}–${hi} s per set with good form. Log the seconds.` : `First time: ${lo}–${hi} reps per set, ~2 reps left. Log reps.` });
+  const base = H[0] || any[0];
+  const ls = base.sets.slice(0, N); const reps = ls.map(s => +s.reps || 0);
+  const last = reps.map(r => r + u).join(',');
+  if (opts.deload) return out({ kind: 'deload', weight: 0, targets: Array(N).fill(lo), last, text: `Deload week: 2 × ${lo}${u}. Easy.` });
+  if (ls.length >= N && reps.every(r => r >= hi)) {
+    return out({ kind: 'hold', weight: 0, targets: Array(N).fill(hi), last,
+      text: kind === 'timed' ? `Held ${last} — top of the ${lo}–${hi} s range. Keep ${hi} s with a harder brace (Brooke progresses this by time, not weight).`
+        : `Hit ${last} — top of range. Use a heavier band or a slower lowering, and keep ${lo}–${hi} reps.` });
+  }
+  const t = reps.map(r => Math.max(lo, Math.min(hi, r + step)));
+  while (t.length < N) t.push(t[t.length - 1] ?? lo);
+  return out({ kind: 'reps', weight: 0, targets: t, last,
+    text: kind === 'timed' ? `Held ${last} → aim ${t.join(',')} s today (+5 s per set).` : `Hit ${last} → aim ${t.join(',')} today (+1 rep per set).` });
 }
 
 /** Warm-up ramp for the first lift (not working sets). */
@@ -172,11 +218,19 @@ export function warmups(ex, work, inc = defaultIncrement(ex)) {
 }
 
 /** PRs for a new set vs all prior sets of the same exercise. */
-export function detectPRs(prior, set) {
+export function detectPRs(prior, set, ex = null) {
   const w = +set.weight, r = +set.reps;
   const valid = prior.filter(s => +s.reps > 0);
   if (!valid.length || !(r > 0)) return [];
   const out = [];
+  const k = logKind(ex);
+  if (k === 'timed' || k === 'reps') { if (r > Math.max(...valid.map(s => +s.reps))) out.push(k === 'timed' ? 'time' : 'reps'); return out; }
+  if (k === 'assisted') {
+    if (w < Math.min(...valid.map(s => +s.weight || 0))) out.push('assist');
+    const atOrBelow = valid.filter(s => (+s.weight || 0) <= w);
+    if (atOrBelow.length && r > Math.max(...atOrBelow.map(s => +s.reps))) out.push('reps');
+    return out;
+  }
   if (w > Math.max(...valid.map(s => +s.weight || 0))) out.push('weight');
   const atOrAbove = valid.filter(s => +s.weight >= w);
   if (atOrAbove.length && r > Math.max(...atOrAbove.map(s => +s.reps))) out.push('reps');

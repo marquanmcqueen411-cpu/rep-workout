@@ -312,3 +312,6 @@ textarea.inp{width:100%;resize:vertical;min-height:84px;font:inherit;font-size:1
 .vlist b{text-align:right;font-size:16px} .vlist b small{color:var(--muted);font-size:12px;font-weight:700}
 .vlast{grid-column:2/4;color:var(--muted);font-size:11.5px;margin-top:2px}
 .energy .stats b.accent{color:var(--accent2)}
+/* v1.9: bodyweight / timed lifts */
+.bwcell{height:56px;display:grid;place-items:center;border-radius:14px;background:#121216;border:1.5px dashed var(--line);color:var(--muted);font-weight:800;font-size:14px}
+.set.done .bwcell{border-color:rgba(48,209,88,.45);color:var(--ok)}

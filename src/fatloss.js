@@ -67,7 +67,7 @@ export function muscleRiskFlag(list, { strengthDrops = [], now = new Date(), pct
       return {
         level: 'warn',
         reason: 'e1rm',
-        message: `${drops.length} lifts have dropped ~3%+ e1RM while cutting. Hit 210 g protein and tell Coach Dre.`,
+        message: `${drops.length} lifts have dropped ~3%+ e1RM while cutting. Hit 210 g protein and tell Coach Brooke.`,
         drops,
       };
     }
@@ -97,7 +97,7 @@ export function muscleRiskFlag(list, { strengthDrops = [], now = new Date(), pct
     return {
       level: 'warn',
       reason: 'fast',
-      message: `Losing ~${w2.pctPerWeek}% bodyweight/week for 2+ weeks (faster than ~1.5%). Check protein (210 g) and tell Coach Dre — fast cuts can cost muscle on tirzepatide.`,
+      message: `Losing ~${w2.pctPerWeek}% bodyweight/week for 2+ weeks (faster than ~1.5%). Check protein (210 g) and tell Coach Brooke — fast cuts can cost muscle on tirzepatide.`,
       weeks: [w1, w2],
       drops,
     };
@@ -106,7 +106,7 @@ export function muscleRiskFlag(list, { strengthDrops = [], now = new Date(), pct
     return {
       level: 'warn',
       reason: 'e1rm',
-      message: `${drops.length} lifts have dropped ~3%+ e1RM while cutting. Hit 210 g protein and tell Coach Dre.`,
+      message: `${drops.length} lifts have dropped ~3%+ e1RM while cutting. Hit 210 g protein and tell Coach Brooke.`,
       drops,
       weeks: [w1, w2].filter(Boolean),
     };

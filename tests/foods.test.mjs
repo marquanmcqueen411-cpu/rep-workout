@@ -30,7 +30,7 @@ test('scaleFood by grams and servings', () => {
   assert.equal(g.qty, 1);
 });
 
-test('meal totals and remaining vs Dre targets', () => {
+test('meal totals and remaining vs Brooke targets', () => {
   const log = [
     { meal: 'breakfast', ...scaleFood(BUILTIN_BY_ID.eggs, { qty: 1 }), kcal: 210, protein: 18, fat: 15, carbs: 1 },
     { meal: 'lunch', ...scaleFood(chicken, { qty: 1 }) },

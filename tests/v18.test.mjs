@@ -53,7 +53,7 @@ test('advice flags too-fast loss with a suggested kcal bump; never mutates targe
   const targets = { kcal: 1800 };
   const x = estimateExpenditure({ ...scenario({ lbPerWeek: 5 }), targets });
   assert.equal(x.advice.kind, 'fast');
-  assert.match(x.advice.text, /Coach Dre/);
+  assert.match(x.advice.text, /Coach Brooke/);
   assert.match(x.advice.text, /\+\d+ kcal/);
   assert.deepEqual(targets, { kcal: 1800 });
   const slow = expenditureAdvice({ expenditure: 2000, avgIntake: 1800, curLb: 250, targetKcal: 1800 });
@@ -87,7 +87,7 @@ test('compareSet: weight up, reps up, same, down', () => {
 });
 
 test('summarize: volume, PRs, e1RM change vs last time, share text', () => {
-  const rec = { id: 'b', workoutName: 'Upper 1', date: '2026-11-16', start: '2026-11-16T18:00:00Z', end: '2026-11-16T18:52:00Z',
+  const rec = { id: 'b', workoutName: 'Upper A', date: '2026-11-16', start: '2026-11-16T18:00:00Z', end: '2026-11-16T18:52:00Z',
     exercises: [{ exId: 'bench_press', sets: [{ weight: 185, reps: 8, pr: ['weight'] }, { weight: 185, reps: 7 }, { weight: 185, reps: 7 }] }] };
   const prevSame = { exercises: [{ exId: 'bench_press', sets: [{ weight: 180, reps: 8 }, { weight: 180, reps: 8 }, { weight: 180, reps: 8 }] }] };
   const sm = summarize(rec, { prevOf: () => prevSame.exercises[0].sets, prevSame });
@@ -97,7 +97,7 @@ test('summarize: volume, PRs, e1RM change vs last time, share text', () => {
   assert.ok(sm.lifts[0].dE > 0);
   assert.equal(sm.volDeltaPct, Math.round((185 * 22 - 180 * 24) / (180 * 24) * 100));
   const t = summaryText(sm);
-  assert.match(t, /Upper 1/); assert.match(t, /PRs: Barbell Bench Press 185×8/);
+  assert.match(t, /Upper A/); assert.match(t, /PRs: Barbell Bench Press 185×8/);
 });
 
 test('store: exNotes + restNotify defaults and migration survive import', () => {
@@ -123,7 +123,7 @@ test('check-in includes burn estimate once there is data', () => {
 
 test('packaging: v1.8.0 cache, new modules cached, manifest shortcuts', () => {
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /rep-v1\.8\.0/);
+  assert.match(sw, /rep-v1\.9\.0/);
   for (const f of ['expenditure.js', 'volume.js', 'summary.js']) assert.ok(sw.includes(`./src/${f}`), f);
   assert.match(sw, /notificationclick/);
   const m = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));

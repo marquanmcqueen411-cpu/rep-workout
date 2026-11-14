@@ -24,7 +24,7 @@ test('every exercise has a verified video id or a YouTube search fallback', () =
   }
 });
 
-test('used program + Dre swap lifts: count verified vs search fallback', () => {
+test('used program + Brooke swap lifts: count verified vs search fallback', () => {
   const verified = used.filter(id => exercise(id).video?.id);
   const fallback = used.filter(id => !exercise(id).video?.id);
   assert.ok(verified.length >= 40, `expected most used lifts to have videos, got ${verified.length}/${used.length}`);

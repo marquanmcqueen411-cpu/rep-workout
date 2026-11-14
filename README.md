@@ -1,4 +1,4 @@
-# Rep — Boss's workout app (v1.8.0)
+# Rep — Boss's workout app (v1.9.0)
 
 Personal, mobile-first PWA (not a Fernholt product). Plain static site: vanilla JS ES modules, no framework, no backend, no accounts. All data stays on the phone (localStorage) with JSON Export/Import in Settings.
 
@@ -13,11 +13,11 @@ npm i && npm run e2e # Playwright (playwright-core + system Chrome) mobile smoke
 Host the `dist/` folder (or the repo root) on Cloudflare Pages or GitHub Pages — no build command needed beyond `npm run build`. HTTPS is required for the service worker / "Install app". On Android Chrome: open the URL → ⋮ → **Add to Home screen / Install app**. Bump `VERSION` in `sw.js` when you change files so phones pick up updates.
 
 ## Change the program
-Everything Coach Dre controls lives in **`src/program.js`**: workouts, starter supplements, protein quick foods, (exercise id, sets, rep range), weekly schedule, daily targets, progression increments, deload rules, rest timers, bodyweight start/goal. Exercise ids, form cues, muscles and swap groups are in **`src/exercises.js`**.
-In-app edits (Settings → Schedule / Program / Targets) are stored on the device and override the file; "Reset program to Coach Dre default" reloads `program.js`.
+Everything Coach Brooke controls lives in **`src/program.js`**: workouts, starter supplements, protein quick foods, (exercise id, sets, rep range), weekly schedule, daily targets, progression increments, deload rules, rest timers, bodyweight start/goal. Exercise ids, form cues, muscles and swap groups are in **`src/exercises.js`**.
+In-app edits (Settings → Schedule / Program / Targets) are stored on the device and override the file; "Reset program to Coach Brooke default" reloads `program.js`.
 
 ## Features
-- **Today**: scheduled workout (Mon U1 / Wed L1 / Fri U2 / Sat L2; Tue/Thu/Sun steps days), choose any workout (shows next in rotation), program week (week 6 = deload banner), Bad-day mode (first 2 lifts × 2 sets), class / other-training logging, Monday weigh-in prompt, weekly strip + streak.
+- **Today**: scheduled workout (Coach Brooke 4-day split, 5 lifts × 3 sets at RIR 2: Mon Upper A / Wed Lower A / Fri Upper B / Sat Lower B; Tue always rest; Thu/Sun 6–8k step walk), choose any workout (shows next in rotation), program week (week 6 = deload banner), Bad-day mode (first 2 lifts × 2 sets), class / other-training logging, Monday weigh-in prompt, weekly strip + streak.
 - **Pre-workout safety check** (ate carbs+protein 1–2 h ago? electrolytes/water? feeling OK?) with a clear don't-lift-fasted warning; persistent "Dizzy or lightheaded? Stop, sit down, sip fluids." bar and **I feel dizzy** button that logs the event, pauses, and shows guidance (end & save or resume).
 - **Set logging**: big ± steppers, tap-to-type, check-off. First session: empty fields. After that: prefilled with the suggestion and "Last: …" chip. RIR 2 cue everywhere.
 - **Progressive overload engine** (`src/progression.js`, unit-tested): per-set double progression (each set gets its own "→ target"); all sets at top of range → jump (+5 lb upper / +10 lb lower; dumbbells step per hand, machines to the next stack step; per-exercise steps editable in Settings → Weight steps). RIR chips (0/1/2/3+) per set: all-top at RIR 0 → hold and own it, all-top at RIR ≥3 → double jump. Missed the bottom of the range twice → −5–10%; stall (3 sessions same weight, no rep gain) → reset −10% and a "Swap variation" button. Week 6 deload = 2 sets at ~90%, then "Back from deload → return to W". Bad-day and deload sessions never drive progression. Warm-up ramp on lift 1, first-session guidance, one-line explanation per lift ("Hit 8,8,8 at 185 last time → 190 today (+5 lb)").
@@ -26,39 +26,43 @@ In-app edits (Settings → Schedule / Program / Targets) are stored on the devic
 - **Rest timer**: auto-starts after each set (lift 1: 150 s, adjustable 2–3 min; others 90 s), ±15 s, skip, vibration + beep, survives reload.
 - **Recovery map**: front/back SVG body, colored by hours since each muscle was trained (72 h compounds, 48 h isolation/secondary) + readiness of the next workout.
 - **Progress**: bodyweight chart with goal line (seeded 255 lb on 2026-10-23, goal 200), est. 1RM (Epley) / top-set chart per exercise, calendar (lifts, classes, dizzy days), session history.
-- **Daily**: Coach Dre targets (1,800 kcal / 210 g P / ~55 g F / ~125 g C), Lose It-style food diary (meals, remaining counters), protein quick-add (+10/+25/+40), water, steps (7,000 default; 6–8k on steps days), sleep, dizziness yes/no + note. Any past day can be edited.
+- **Daily**: Coach Brooke targets (1,800 kcal / 210 g P / ~55 g F / ~125 g C), Lose It-style food diary (meals, remaining counters), protein quick-add (+10/+25/+40), water, steps (7,000 default; 6–8k on steps days), sleep, dizziness yes/no + note. Any past day can be edited.
 - **Food tracker** (Daily): log Breakfast / Lunch / Dinner / Snacks with editable servings or grams. Search built-in cut foods (works offline) plus Open Food Facts (no key) and USDA FoodData Central (`DEMO_KEY`, soft-fail). Barcode scan (BarcodeDetector + camera) or type the code; lookup via Open Food Facts product API. Recents, favorites, saved meals, copy yesterday, quick-add calories/macros, manual entry. Daily totals vs targets with remaining counters. Offline search shows “Needs signal” — no request queue. Protein from the food log feeds the protein tracker once (shake check-off = one food entry).
 - **Protein tracker** (Daily hero card): big ring toward 210 g, +10/+25/+40, saved quick foods (editable presets), custom grams + label, today’s timed log (swipe left or tap ✕ to delete), 7-day bar chart vs goal (Daily + Progress). Totals stay in sync with the food log — no double counting.
 - **Supplements**: daily checklist grouped by timing, tap to mark taken (time stamped), adherence %, 7-day history + 100%-day streak. Defaults: Creatine 5 g (Morning) and Protein shake (Post-workout — checking it off offers to add 50 g, editable, to the protein tracker; unchecking removes that entry). Tirzepatide appears as a checklist line only on injection due days (Sat–Sun by default), linked to the same injection log, and only counts toward adherence on those days. Electrolytes live in the pre-workout check. Edit/add/reorder/remove in Settings.
 - **Tirzepatide injection reminder**: default Saturday; due Sat–Sun, overdue from Monday until logged (window and day editable). Log now or back-date to the injection day; optional dose label and site with rotation hint.
 - **Settings**: schedule per weekday (lift A/B/C/D, steps, class/other training, rest), streak target, cycle start / deload, rest timers, sound/vibration, targets, program editor, Export / Import / Erase.
 - **Backup to Drive (free)**: Settings → **Backup to Drive / Files** (also a Sunday / 7-day reminder card on Today). Uses the Web Share API so Android’s share sheet can offer Drive; falls back to a JSON download. Shows “Last backed up” in Settings. No Google Cloud project or OAuth.
-- **Weekly check-in for Coach Dre**: Monday card on Today + button on Progress. Builds a plain-text summary (7-day avg weight & change, sessions done/planned, top set + e1RM change per lift, PRs, deload/stall notes, food days logged, avg kcal/P/F/C vs targets, Tue/Thu/Sun steps vs 6–8k, supplements / tirzepatide, dizziness/sleep/water). **Copy** and **Share** — paste it to Dre.
+- **Weekly check-in for Coach Brooke**: Monday card on Today + button on Progress. Builds a plain-text summary (7-day avg weight & change, sessions done/planned, top set + e1RM change per lift, PRs, deload/stall notes, food days logged, avg kcal/P/F/C vs targets, Tue/Thu/Sun steps vs 6–8k, supplements / tirzepatide, dizziness/sleep/water). **Copy** and **Share** — paste it to Brooke.
 - **Plate calculator**: on barbell / trap-bar sets, shows per-side LA Fitness plates (45/35/25/10/5/2.5) for a 45 lb bar (trap bar separately editable in Settings).
 - **Voice + vibration rest timer**: speaks “Rest over, next set” (and a “10 seconds” warning) via `speechSynthesis`, plus vibration; toggles in Settings. Screen wake lock keeps the timer alive during a workout.
-- **Exercise swap**: ⇄ on each lift shows Coach Dre’s ranked 3 alternatives (exact list in `DRE_SWAPS`). Same rep range · 3 sets · RIR 2. Today-only by default, or **Make permanent in the plan**. Each swap logs its own weight — no carry-over from the original lift; first time = pick a starting weight for the bottom of the range at RIR 2.
-- **Smarter fat-loss tracking**: bodyweight chart overlays a 7-day moving average; shows lb/wk and % bodyweight/week, projected date to 200 lb, and a gentle flag if loss is faster than ~1.5% BW/week for 2+ weeks or several e1RMs are dropping (check protein, tell Coach Dre). No medical claims.
+- **Exercise swap**: ⇄ on each lift shows Coach Brooke’s ranked 3 alternatives (exact list in `DRE_SWAPS`). Same rep range · 3 sets · RIR 2. Today-only by default, or **Make permanent in the plan**. Each swap logs its own weight — no carry-over from the original lift; first time = pick a starting weight for the bottom of the range at RIR 2.
+- **Smarter fat-loss tracking**: bodyweight chart overlays a 7-day moving average; shows lb/wk and % bodyweight/week, projected date to 200 lb, and a gentle flag if loss is faster than ~1.5% BW/week for 2+ weeks or several e1RMs are dropping (check protein, tell Coach Brooke). No medical claims.
 - **Last time, per set** (Strong / Hevy “Previous”): under every set, “Last time 180×8 @2 RIR”; once checked off, a chip compares it (+5 lb, +1 rep, = last, or both changes).
 - **Setup notes** (Strong / Hevy pinned notes): 📝 on each lift — seat height, pins, grip — shown every time that lift comes up. Stored in `exNotes`, included in Export/Import.
 - **Workout summary** (Hevy / JEFIT / Strong): after Finish — sets, volume (and % vs the last time you did that workout), minutes, each lift’s best set + e1RM change vs last time, PR list. **Share** (text) and **View summary** from Today.
-- **Sets per muscle** (Hevy / JEFIT / Fitbod) on Recovery: working sets done this week vs Coach Dre’s full week per muscle (secondary = ½), plus last week.
-- **Energy burn estimate** (MacroFactor) on Progress: average logged intake + weight-trend slope (3,500 kcal/lb) over the last 21 days → kcal/day burned, confidence, and a suggestion against the 1,800 target (flags > 1.5% BW/wk or eating well under target). Suggestion only — never changes targets. Also in the Coach Dre check-in.
+- **Sets per muscle** (Hevy / JEFIT / Fitbod) on Recovery: working sets done this week vs Coach Brooke’s full week per muscle (secondary = ½), plus last week.
+- **Energy burn estimate** (MacroFactor) on Progress: average logged intake + weight-trend slope (3,500 kcal/lb) over the last 21 days → kcal/day burned, confidence, and a suggestion against the 1,800 target (flags > 1.5% BW/wk or eating well under target). Suggestion only — never changes targets. Also in the Coach Brooke check-in.
 - **Rest-over notification** (Strong / Hevy): optional (Settings → Rest timer). If you switch apps mid-rest, a phone notification fires when rest ends; tapping it returns to the workout.
 - **Home-screen shortcuts**: long-press the Rep icon → Start today's workout / Log food / Weigh in.
+- **v1.9 plan** (`src/program.js`): Upper A — bench 6–8, chest-supported row 8–10, seated DB press 8–10, lat pulldown 10–12, triceps pushdown 12–15 · Lower A — box squat 6–8, RDL 8–10, leg press 10–12, seated leg curl 10–12, standing calf raise 12–15 · Upper B — incline DB 8–10, pull-up/assisted 6–10, seated cable row 10–12, cable lateral 12–15, DB curl 10–12 · Lower B — trap-bar deadlift 6–8, split squat 8–10/leg, hip thrust 10–12, leg extension 12–15, plank 30–45 s.
+- **Coach Brooke swaps**: every plan lift has Brooke's ranked 3 (same sets/reps/RIR, own weight log, no carry-over). Home options are tagged **Home**; band/bodyweight swaps log reps only, side plank logs seconds. Plank swaps keep their own targets (dead bug 3×8/side, Pallof press 3×10/side, side plank 3×20–30 s/side); swapping back restores the plan target.
+- **Lift types**: plank logs seconds (+5 s per set, progresses by time, never weight); banded push-up (home swap for bench, after Brooke's ranked 3) logs reps only; pull-up logs **assistance** lb (0 = bodyweight, less = progress, PRs = least assistance; strength score uses bodyweight − assistance).
+- **Plan migration**: saved v1 (3-lift) plans upgrade on first load — every session, weight, the cycle start and rest tweaks are kept (same exercise + workout ids U1/L1/U2/L2), permanent swaps carry into the new slot, Tuesday becomes rest (an untouched v1 schedule becomes the new default). Recorded in `planMigration`.
 - **Offline**: service worker caches the app shell.
 
 ## Layout
 ```
 index.html  styles.css  manifest.json  sw.js
 icons/            icon.svg, icon-192.png, icon-512.png, maskable-512.png
-src/program.js    ← Coach Dre's program, schedule, targets, rules (edit me)
+src/program.js    ← Coach Brooke's program, schedule, targets, rules (edit me)
 src/exercises.js  exercise library: equipment, muscles, cues, demo links, swap groups
 src/store.js      localStorage state, dates, migrations
 src/progression.js pure overload engine (targets, jumps, stalls, deloads, PRs, warm-ups, rel. strength)
 src/renpho.js     Renpho CSV parser + bodyweight merge
 src/plates.js     LA Fitness plate calculator
 src/fatloss.js    7-day MA, loss rate, goal projection, muscle-risk flag
-src/checkin.js    Coach Dre weekly plain-text summary
+src/checkin.js    Coach Brooke weekly plain-text summary
 src/backup.js     Web Share / download backup + reminder
 src/swap.js       Swap alternatives + weight conversion
 src/foods.js      Built-in cut foods, meal totals, protein sync (no double count)

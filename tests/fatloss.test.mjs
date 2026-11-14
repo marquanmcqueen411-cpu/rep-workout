@@ -53,7 +53,7 @@ test('muscleRiskFlag fires on fast 2-week cut', () => {
   const flag = muscleRiskFlag(bw);
   assert.ok(flag, 'expected fast-loss flag');
   assert.equal(flag.reason, 'fast');
-  assert.match(flag.message, /protein|Coach Dre/i);
+  assert.match(flag.message, /protein|Coach Brooke/i);
 });
 
 test('muscleRiskFlag fires on multiple e1RM drops', () => {

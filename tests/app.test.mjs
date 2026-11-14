@@ -10,8 +10,8 @@ const sess = (id, date, wid, exs, o = {}) => ({ id, workoutId: wid, workoutName:
 
 test('suggest() wires history + per-exercise increment override', () => {
   const s = reset();
-  s.sessions.push(sess('a', '2026-11-02', 'U2', [{ exId: 'lat_pulldown', reps: [8, 12], sets: [{ weight: 160, reps: 12 }, { weight: 160, reps: 12 }, { weight: 160, reps: 12 }] }]));
-  const slot = { ex: 'lat_pulldown', sets: 3, reps: [8, 12] };
+  s.sessions.push(sess('a', '2026-11-02', 'U1', [{ exId: 'lat_pulldown', reps: [10, 12], sets: [{ weight: 160, reps: 12 }, { weight: 160, reps: 12 }, { weight: 160, reps: 12 }] }]));
+  const slot = { ex: 'lat_pulldown', sets: 3, reps: [10, 12] };
   assert.equal(L.suggest(slot).weight, 170);
   s.settings.increments.lat_pulldown = 5;
   assert.equal(L.suggest(slot).weight, 165);
