@@ -1,4 +1,4 @@
-# Rep — Boss's workout app (v1.7.0)
+# Rep — Boss's workout app (v1.8.0)
 
 Personal, mobile-first PWA (not a Fernholt product). Plain static site: vanilla JS ES modules, no framework, no backend, no accounts. All data stays on the phone (localStorage) with JSON Export/Import in Settings.
 
@@ -38,6 +38,13 @@ In-app edits (Settings → Schedule / Program / Targets) are stored on the devic
 - **Voice + vibration rest timer**: speaks “Rest over, next set” (and a “10 seconds” warning) via `speechSynthesis`, plus vibration; toggles in Settings. Screen wake lock keeps the timer alive during a workout.
 - **Exercise swap**: ⇄ on each lift shows Coach Dre’s ranked 3 alternatives (exact list in `DRE_SWAPS`). Same rep range · 3 sets · RIR 2. Today-only by default, or **Make permanent in the plan**. Each swap logs its own weight — no carry-over from the original lift; first time = pick a starting weight for the bottom of the range at RIR 2.
 - **Smarter fat-loss tracking**: bodyweight chart overlays a 7-day moving average; shows lb/wk and % bodyweight/week, projected date to 200 lb, and a gentle flag if loss is faster than ~1.5% BW/week for 2+ weeks or several e1RMs are dropping (check protein, tell Coach Dre). No medical claims.
+- **Last time, per set** (Strong / Hevy “Previous”): under every set, “Last time 180×8 @2 RIR”; once checked off, a chip compares it (+5 lb, +1 rep, = last, or both changes).
+- **Setup notes** (Strong / Hevy pinned notes): 📝 on each lift — seat height, pins, grip — shown every time that lift comes up. Stored in `exNotes`, included in Export/Import.
+- **Workout summary** (Hevy / JEFIT / Strong): after Finish — sets, volume (and % vs the last time you did that workout), minutes, each lift’s best set + e1RM change vs last time, PR list. **Share** (text) and **View summary** from Today.
+- **Sets per muscle** (Hevy / JEFIT / Fitbod) on Recovery: working sets done this week vs Coach Dre’s full week per muscle (secondary = ½), plus last week.
+- **Energy burn estimate** (MacroFactor) on Progress: average logged intake + weight-trend slope (3,500 kcal/lb) over the last 21 days → kcal/day burned, confidence, and a suggestion against the 1,800 target (flags > 1.5% BW/wk or eating well under target). Suggestion only — never changes targets. Also in the Coach Dre check-in.
+- **Rest-over notification** (Strong / Hevy): optional (Settings → Rest timer). If you switch apps mid-rest, a phone notification fires when rest ends; tapping it returns to the workout.
+- **Home-screen shortcuts**: long-press the Rep icon → Start today's workout / Log food / Weigh in.
 - **Offline**: service worker caches the app shell.
 
 ## Layout

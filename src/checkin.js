@@ -6,6 +6,7 @@ import { WD_LONG, doneSessions, e1rm, scheduleFor, historyFor, suppAdherence, in
 import { exercise } from './exercises.js';
 import { lossRate, movingAverage, muscleRiskFlag } from './fatloss.js';
 import { weekOf } from './progression.js';
+import { estimateExpenditure } from './expenditure.js';
 
 function avg(nums) {
   const a = nums.filter(n => n != null && !Number.isNaN(+n));
@@ -139,6 +140,7 @@ export function buildCheckIn(ref = new Date(), st = state) {
   // Program week / deload
   const pw = weekOf(st.settings.cycleStart, parseYmd(to), st.program.cycleWeeks || 6, st.program.deloadWeek || 6, st.settings.deloadEnabled);
 
+  const energy = estimateExpenditure({ bodyweight: st.bodyweight, daily: st.daily, targets: st.settings.targets, now: addDays(parseYmd(to), 1) });
   const flag = muscleRiskFlag(bwAll.filter(b => b.date <= to), { strengthDrops: drops });
 
   const lines = [];
@@ -170,6 +172,7 @@ export function buildCheckIn(ref = new Date(), st = state) {
   lines.push(`  Food days logged: ${foodDays}/${keys.length}`);
   lines.push(`  Protein avg: ${fmt0(avgP)} g / ${proteinGoal} g${avgP != null ? (avgP >= proteinGoal ? ' ✓' : ' (under)') : ''}`);
   if (avgK != null) lines.push(`  Kcal avg: ${fmt0(avgK)} (target ${st.settings.targets.kcal || 1800})`);
+  if (energy && energy.ok) lines.push(`  Est. burn (food log + weight trend): ~${energy.expenditure.toLocaleString()} kcal/day (${energy.confidence} confidence, eating ~${energy.avgIntake.toLocaleString()})`);
   if (avgF != null || avgC != null) lines.push(`  Fat avg: ${fmt0(avgF)} g / ${st.settings.targets.fat || 55} g · Carbs avg: ${fmt0(avgC)} g / ${st.settings.targets.carbs || 125} g`);
   if (stepsDays.length) {
     lines.push('  Steps (Tue/Thu/Sun target 6–8k):');

@@ -105,6 +105,19 @@ await page.waitForTimeout(2600);
 await page.evaluate(() => { document.querySelector('section.card.ex').scrollIntoView({ block: 'start' }); window.scrollBy(0, -50); });
 await page.screenshot({ path: SHOTS + '01-today-workout-logging.png' });
 
+// ---- v1.8: last time per set + comparison, sticky setup note
+assert((await cards.nth(0).locator('.prev').count()) === 3, 'last-time line under every bench set');
+assert((await cards.nth(0).locator('.prev').first().textContent()).includes('Last time 180×8'), 'last time shows 180×8');
+assert(await cards.nth(0).locator('.prev .cmp').count() >= 1, 'completed set shows comparison vs last time');
+await page.click('[data-act=exNote][data-ex=bench_press]');
+await page.fill('#exNoteText', 'Safeties on 5 · grip pinky on rings');
+await page.click('[data-act=exNoteSave]');
+assert((await page.evaluate(() => window.__rep.state.exNotes.bench_press)) === 'Safeties on 5 · grip pinky on rings', 'setup note saved');
+assert((await cards.nth(0).locator('.exnote.has').textContent()).includes('Safeties on 5'), 'setup note shown on the lift');
+await page.waitForTimeout(2000);
+await page.evaluate(() => { document.querySelector('section.card.ex').scrollIntoView({ block: 'start' }); window.scrollBy(0, -60); });
+await page.screenshot({ path: SHOTS + '28-last-time-and-setup-note.png' });
+
 // timer end → GO!
 await page.evaluate(() => { window.__rep.state.timer.end = Date.now() + 600; });
 await page.waitForFunction(() => document.querySelector('.tleft')?.textContent === 'GO!', null, { timeout: 4000 });
@@ -123,6 +136,20 @@ const lastTimer = await page.evaluate(() => window.__rep.state.timer);
 assert(lastTimer === null, 'no rest timer after final set');
 await page.click('[data-act=finish]');
 await page.waitForSelector('text=Workout complete');
+assert((await page.locator('.panel .sumlifts li').count()) === 3, 'summary lists all 3 lifts');
+assert(await page.locator('.panel .sumlifts .cmp').count() >= 1, 'summary shows e1RM change vs last time');
+assert(await page.locator('.panel .pr-banner >> text=Barbell Bench Press').count(), 'summary names the PR lift');
+await page.evaluate(() => { document.getElementById('pr').classList.remove('show'); document.getElementById('toast').classList.remove('show'); });
+await page.waitForTimeout(600);
+await page.screenshot({ path: SHOTS + '29-workout-summary.png' });
+await page.evaluate(() => { window.__shared = null; navigator.share = async d => { window.__shared = d; }; });
+await page.click('.panel [data-act=summaryShare]');
+await page.waitForFunction(() => window.__shared);
+assert((await page.evaluate(() => window.__shared.text)).includes('Upper 1') , 'summary share text built');
+await page.click('.panel [data-act=closeSheet]');
+await page.click('[data-act=summary]');
+await page.waitForSelector('.panel .sumlifts');
+log('ok - summary reopens from Today');
 await page.click('.panel [data-act=closeSheet]');
 const sess = await page.evaluate(() => window.__rep.state.sessions.at(-1));
 await page.evaluate(() => window.scrollTo(0, 0));
@@ -136,9 +163,32 @@ await page.waitForTimeout(2000); // let toast clear
 await page.click('.tabbar [data-tab=recovery]');
 await page.waitForSelector('svg.body');
 await page.screenshot({ path: SHOTS + '02-recovery-map.png' });
+assert(await page.locator('.wsets .vlist li').count() >= 6, 'sets-per-muscle card lists trained muscles');
+assert(parseFloat(await page.locator('.wsets li:has-text("Chest") b').textContent()) >= 3, 'chest: today\'s 3 bench sets counted this week');
+await page.evaluate(() => { document.querySelector('.wsets').scrollIntoView({ block: 'start' }); window.scrollBy(0, -10); });
+await page.screenshot({ path: SHOTS + '30-sets-per-muscle.png' });
 
 // ---- Progress
 await page.click('.tabbar [data-tab=progress]');
+assert(await page.locator('.energy >> text=learning').count(), 'energy card asks for more data first');
+// v1.8: 3 weeks of full food days + weigh-ins → MacroFactor-style estimate (restored afterwards)
+await page.evaluate(() => {
+  const s = window.__rep.state; window.__stash = JSON.stringify({ daily: s.daily, bw: s.bodyweight });
+  const k = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  s.bodyweight = [];
+  for (let i = 21; i >= 1; i--) { const d = new Date(); d.setDate(d.getDate() - i); const key = k(d);
+    s.daily[key] = { ...(s.daily[key] || {}), foodLog: [{ id: 'e' + i, meal: 'lunch', name: 'seed', kcal: 1650 + (i % 3) * 100, protein: 200, fat: 50, carbs: 120 }], kcal: 1650 + (i % 3) * 100 };
+    s.bodyweight.push({ date: key, lb: +(255 - (21 - i) * 0.33 + ((i % 4) - 1.5) * 0.4).toFixed(1) }); }
+  window.__rep.render();
+});
+assert(await page.locator('.energy >> text=You burn').count(), 'energy estimate shown with enough data');
+const en = await page.evaluate(() => { const s = window.__rep.state; return window.__rep.estimateExpenditure({ bodyweight: s.bodyweight, daily: s.daily, targets: s.settings.targets }); });
+assert(en.ok && en.expenditure > 2500 && en.expenditure < 3200, 'expenditure ≈ intake + trend (' + en.expenditure + ')');
+assert((await page.evaluate(() => window.__rep.state.settings.targets.kcal)) === 1800, 'targets untouched (suggestion only)');
+await page.evaluate(() => { document.querySelector('.energy').scrollIntoView({ block: 'start' }); window.scrollBy(0, -10); });
+await page.waitForTimeout(300);
+await page.screenshot({ path: SHOTS + '31-energy-estimate.png' });
+await page.evaluate(() => { const s = window.__rep.state; const o = JSON.parse(window.__stash); s.daily = o.daily; s.bodyweight = o.bw; window.__rep.render(); });
 await page.selectOption('select[data-change=progEx]', 'bench_press');
 assert(await page.locator('svg.chart').count() >= 2, 'bodyweight + strength charts render');
 await page.screenshot({ path: SHOTS + '03-progress.png', fullPage: false });
@@ -535,6 +585,15 @@ await page.click('[data-act=foodMealSaveGo]');
 assert((await page.evaluate(() => window.__rep.state.savedMeals[0].name)) === 'Cut day', 'saved meal stored');
 
 log('ok - v1.7 food tracker');
+
+// ---- v1.8 home-screen shortcuts
+await page.goto(APP_URL + '?go=weigh'); await page.waitForSelector('.hero');
+assert((await page.evaluate(() => location.search + location.hash)) === '#progress', 'weigh shortcut opens Progress and cleans URL');
+await page.goto(APP_URL + '?go=food'); await page.waitForSelector('.panel');
+assert((await page.evaluate(() => location.hash)) === '#daily' && await page.locator('.panel input').count(), 'food shortcut opens food search');
+await page.click('.panel [data-act=closeSheet] >> nth=0').catch(() => {});
+const man = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
+assert(man.shortcuts.length === 3, 'manifest has 3 shortcuts');
 
 // ---- offline: service worker serves app shell
 // reload once so the freshly-installed SW controls the page (fallback to goto if the reload stalls)

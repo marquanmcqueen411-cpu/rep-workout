@@ -39,6 +39,7 @@ function defaults() {
       barWeight: 45,         // Olympic barbell (lb)
       trapBarWeight: 45,     // trap/hex bar (lb)
       lastBackupAt: null,    // ISO timestamp of last successful backup share/download
+      restNotify: false,     // phone notification when rest ends while the app is in the background
     },
     supplements: clone(DEFAULT_SUPPLEMENTS),
     quickFoods: clone(DEFAULT_QUICK_FOODS),
@@ -52,6 +53,7 @@ function defaults() {
     favorites: [],
     savedMeals: [],
     recentFoods: [],
+    exNotes: {},           // sticky per-exercise setup notes (seat height, pins, grip)
   };
 }
 
@@ -66,6 +68,7 @@ function migrate(s) {
   for (const k of ['sessions', 'bodyweight', 'dizzyEvents', 'supplements', 'quickFoods', 'injections', 'favorites', 'savedMeals', 'recentFoods']) if (!Array.isArray(out[k])) out[k] = d[k];
   if (!out.program || !Array.isArray(out.program.workouts)) out.program = d.program;
   if (!out.daily || typeof out.daily !== 'object') out.daily = {};
+  if (!out.exNotes || typeof out.exNotes !== 'object' || Array.isArray(out.exNotes)) out.exNotes = {};
   // v1.1 shipped placeholder "example" supplements — swap them for the real defaults
   if (out.supplements.length && out.supplements.every(x => x.example)) out.supplements = d.supplements;
   return out;
